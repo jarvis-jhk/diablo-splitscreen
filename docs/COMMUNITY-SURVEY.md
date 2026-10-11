@@ -20,7 +20,7 @@ a **shared camera**, not independently rendered local clients:
 
 - `Source/controls/local_coop/local_coop.hpp`: one camera state and one
   `panelOwnerPlayerId`/`storeOwnerPlayerId` in `LocalCoopState`;
-  `GetLocalCoopCameraPosition` is documented as the players' average position.
+  `CalculateLocalCoopViewPosition` is documented as the players' average position.
 - `local_coop.cpp::IsTilePositionOnScreen` rejects movement too far from other
   living players on player zero's level. `UpdateLocalCoopCamera` smooths one
   common camera. `LocalCoopPlayerContext` swaps only `MyPlayer`, `MyPlayerId`

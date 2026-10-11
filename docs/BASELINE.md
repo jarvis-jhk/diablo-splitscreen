@@ -44,6 +44,16 @@ alternative; compile GoogleTest/benchmark with the same library. When vendoring
 GoogleTest, standalone tests including gmock headers must also see the matching
 vendored googlemock include directory, rather than older system headers.
 
+The original pinned source fails Clang23/libc++ at `Source/tables/textdat.h`:
+it uses `std::vector` without its direct include. Fork commit `ad72f2915` adds
+that include. The next compile exposed missing `<cstdlib>` for `std::getenv` in
+`Source/platform/locale.cpp`; fork commit `df52384a2` adds it. Record original-source
+and final fixed-source results separately. Clang23
+also diagnoses benchmark1.8.5's `__COUNTER__` with its `-pedantic-errors`. The
+local validation builds the game and all CTest executables explicitly, excluding
+standalone performance benchmark targets; native GCC/MSVC CI still builds all
+default targets. This does not constitute a performance benchmark.
+
 ## Windows reproduction
 
 Use a native MSVC developer shell, Ninja, CMake and the pinned vcpkg checkout.
