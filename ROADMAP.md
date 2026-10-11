@@ -2,7 +2,7 @@
 
 JARVIS owns delivery; the owner edits goals. All work below is pending unless checked.
 Initial priority: build a verified upstream baseline and prove independent two-player
-input/rendering before expanding the release machinery or doing a large refactor.
+input and nonblocking personal UI on a shared screen before expanding the release machinery or doing a large refactor.
 
 ## M0 — reproducible baseline and architecture proof
 
@@ -11,17 +11,23 @@ input/rendering before expanding the release machinery or doing a large refactor
 - [x] Survey relevant community forks/mods and existing split-screen attempts; record evidence.
 - [x] Reproduce Linux Debug/tests and Windows CI builds from the pinned baseline (two upstream pagination skips per platform; see NOTES).
 - [ ] Back up user data and smoke upstream solo/controller and two-client loopback co-op.
-- [ ] Compare in-process contexts with isolated client workers + one compositor; measure
-  Deck memory/CPU and implement the smallest viable TWO-player single-window proof.
-- [ ] Prove exclusive controller routing and independent camera/UI/player state, with
-  inventory open for one player while the other moves and casts; different dungeon levels.
+- [ ] Audit PR8354 shared-camera reuse against the pinned baseline; implement the smallest
+  viable TWO-player shared-screen proof with measured frame time and memory.
+- [ ] Prove exclusive controller routing and personal UI/player state: one inventory open
+  while the other moves/fights/casts; both inventories open with independent cursors.
+- [ ] Personal menus, equipment, spell selection and merchants never globally pause or
+  capture another controller; camera remains useful while a stationary player sorts items.
+- [ ] Evaluate in-process ownership first; retain isolated clients/compositor as an unselected
+  fallback if measured compatibility/performance evidence requires it.
 - [ ] Wire real crash and launch failures through anonymous fault relay into GitHub issues.
 
 ## M1 — complete 1–4-player couch game
 
 - [ ] Controller-only lobby, character creation/selection, join/leave and stable pad ownership.
-- [ ] Adaptive one/two/three/four view layouts; independent HUD, automap, menus and inventory.
-- [ ] Independent targeting, spells, belt, merchants, dialogue, death/revival and level travel.
+- [ ] Shared camera for one to four characters; readable personal HUD and simultaneous
+  inventory/menu overlays at Deck resolution, with adequate visible gameplay area.
+- [ ] Independent targeting, spells, belt, merchants, dialogue and death/revival; explicit
+  party level-travel behavior that cannot silently discard a personal transaction.
 - [ ] Stable offline local co-op using upstream protocol/world behavior; no internet dependency.
 - [ ] Full Diablo quest/progression coverage and ending, difficulty progression, loot and saves.
 - [ ] Controller disconnect/reconnect, held-input release, replacement and slot reuse.

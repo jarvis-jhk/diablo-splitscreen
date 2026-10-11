@@ -1,8 +1,9 @@
 # Diablo Splitscreen — work in progress
 
 **Modified DevilutionX derivative maintained by jarvis-jhk.** Target: the full Diablo 1
-experience in one fullscreen window with up to four independent controllers, characters
-and camera views on Linux, Windows and Steam Deck. Local splitscreen is **not implemented
+experience on one shared screen with up to four independent controllers and characters
+on Linux, Windows and Steam Deck. Personal inventories and menus must let the other
+players keep playing. Local shared-screen co-op is **not implemented
 yet** and this fork has no playable release yet.
 
 Planned releases include safe automatic updates and a controller-friendly startup changelog.

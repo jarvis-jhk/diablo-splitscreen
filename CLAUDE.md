@@ -5,7 +5,11 @@ PRs, CI, releases and upkeep. The owner supplies roadmap goals. Read ROADMAP.md,
 NOTES.md and docs/SPLITSCREEN.md before choosing a bounded slice.
 
 Goal: the FULL Diablo 1 game playable by one to four local players, with independent
-controllers, cameras, characters, inventory and menus in one fullscreen application.
+controllers and characters sharing one camera in one fullscreen application. Jan changed
+the preferred direction on 2026-10-11: shared screen like console Diablo III, with a
+strict improvement: inventory, equipment, spell selection, merchants and personal menus
+must never pause the world or capture another player's controls. Multiple players must
+be able to use their own panels simultaneously while others move, fight and cast.
 Target Linux x86_64, Windows x86_64 and Steam Deck Game Mode. Ship safe automatic
 updates and show changes on first startup after update. Signal only for verified new
 fork releases, not routine autonomous progress. Never pass an inherited upstream tag
@@ -14,8 +18,9 @@ or untested mockup off as our release. Fork versions use v0.x.y initially.
 Reuse upstream controller, network, save, quest and rendering work where practical.
 Before major architecture changes investigate relevant community forks and document
 what was reused and why. Multiple manually tiled windows are a development diagnostic,
-not the delivered single-window Deck experience. Existing globals make per-view and
-per-player isolation a real engineering task. Prove the architecture with two players,
+not the delivered single-window Deck experience. Existing globals make per-player input and UI
+isolation a real engineering task. Shared camera is the priority; independent camera
+views and simultaneous different levels are no longer initial acceptance gates. Prove the architecture with two players,
 then four; avoid months of speculative refactoring. No silent reduction of game content.
 Full quests in multiplayer exist upstream: test them, including progression and ending.
 

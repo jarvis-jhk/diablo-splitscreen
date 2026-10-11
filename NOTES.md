@@ -1,11 +1,15 @@
 # Current state — 2026-10-11
 
+Authoritative direction: shared screen for up to four characters, with simultaneous
+personal inventories/menus that never block other players or pause world simulation.
+Jan's clarification replaces the initial independent-camera/different-level gates.
+
 Original Linux/Windows Debug baseline is verified. Final portability source
 df52384a2 compiles the complete local game/test suite and starts with --help;
 local Clang LeakSanitizer reports43 failed exits (see below). Fresh native
 final-source CI is pending. No architecture has been selected or implemented.
 
-Project initialized; no fork release or working local splitscreen exists yet.
+Project initialized; no fork release or working local shared-screen co-op exists yet.
 Upstream baseline: 37551902752724327948a44db3e917e089598b37 (master at setup).
 Upstream latest published release observed: 1.5.5. Fork versions start at v0.x.y.
 Full upstream master history was preserved using a GitHub fork. origin is the fork;
@@ -84,7 +88,7 @@ The game --help startup smoke passes; this is not a gameplay smoke test.
 One replacement CI continuation is scheduled after the first tick was consumed;
 private run/build/checkpoint evidence remains outside the public repository. Next:
 verify final-source native Debug and investigate the bounded sanitizer concern,
-then the real two-client frame/input experiment. The separate
+then the two-player shared-screen/nonblocking inventory proof. Historical separate
 offscreen render backend and input-poll ownership boundaries are in SPLITSCREEN.md.
 Distribution, updates/changelog and central fault reporting are release requirements.
 Private JARVIS_REPORT_URL repo secret is configured; do not embed it in artifacts.
@@ -103,3 +107,21 @@ Sources reviewed:
   Source/controls/devices/game_controller.cpp; Source/engine/render/scrollrt.cpp; Source/player.h.
 Initial web search did not establish an existing ready-to-use four-player Deck splitscreen
 implementation. Complete the fork/mod survey before claiming none exists.
+
+
+## 2026-10-11 — shared-screen direction and nonblocking inventories
+
+Jan clarified the preferred product: shared screen like console Diablo III. He also
+explicitly rejects blocking everyone while one player sorts items. This supersedes
+the original independent-camera/different-level M0 requirements. CLAUDE, README,
+ROADMAP and SPLITSCREEN now require personal input/UI ownership, simultaneous panels
+and continuing world simulation/other-player movement, combat and spells. PR8354 is
+more relevant for camera/input reuse, but its single panel/store owner does not meet
+this requirement. No gameplay implementation or performance proof is claimed.
+
+Baseline work remains on source df52384a2; native run38170302962 is already dispatched
+and still running at20:04UTC. Original native evidence and the unresolved local43
+LeakSanitizer exits are preserved. No rebuild/re-dispatch for this documentation change.
+Next: finish existing baseline validation/triage, then bounded two-player shared-screen
+and nonblocking inventory proof. Exactly one continuation retains its existing time;
+its prompt now carries the authoritative changed product direction.

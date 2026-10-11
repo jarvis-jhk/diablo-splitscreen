@@ -30,8 +30,9 @@ a **shared camera**, not independently rendered local clients:
 - `Source/levels/trigs.cpp::CheckTriggers` explicitly processes a trigger from
   any local player through `StartNewLvl(myPlayer, ...)`, bringing everyone along.
 
-These observations are a source audit, not runtime confirmation. They disqualify
-a wholesale merge as our independent-camera/different-level solution. Useful
+These observations are a source audit, not runtime confirmation. The original
+independent-camera target has since been replaced by shared screen (see result below).
+A wholesale merge still fails simultaneous personal-panel ownership. Useful
 ideas to inspect selectively later: device ownership, hero enumeration,
 per-player HUD proportions, and player-id-aware loopback messages. Any reuse
 needs attribution, baseline compatibility, and focused regressions first.
@@ -69,11 +70,14 @@ DevilutionX handler meeting Linux/Deck single-window requirements. Its general
 device-isolation idea is relevant to the isolated-client experiment; desktop
 window tiling and Windows injection are not the delivered architecture.
 
-## Result and next experiment
+## Result and next experiment — updated product direction
 
-Preserve the upstream engine and multiplayer protocol. Compare a genuinely
-isolated in-process client context against isolated engine workers with one
-compositor. The PR is evidence that a small player-pointer swap is insufficient,
-not evidence that full contexts are impossible. Neither architecture is selected
-by this survey; baseline tests and a real two-client frame/input experiment come
-first. Different-level travel and independent menus are early gates, not polish.
+Jan's 2026-10-11 clarification prefers shared screen, with personal inventories and
+menus that never block other players. Earlier independent-camera/different-level
+comparisons above are historical survey context, not the current acceptance gate.
+Preserve upstream gameplay, quests and saves. PR8354's shared camera and controller/HUD
+work are now useful candidates; its one panel/store owner needs replacement with
+simultaneous per-player UI ownership. Audit and test bounded reuse, not a wholesale
+untested merge. After the baseline gate, prove two shared-screen players with one
+sorting inventory while the other moves/fights/casts, then both independent inventories.
+Measure performance and retain isolated clients as a fallback, not a required choice.

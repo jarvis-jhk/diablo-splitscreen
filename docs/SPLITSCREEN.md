@@ -1,44 +1,62 @@
-# Split-screen architecture investigation
+# Shared-screen couch co-op architecture investigation
 
-This is a design brief, not an implemented architecture. Preserve the complete Diablo
-world and upstream network/gameplay behavior. One fullscreen window must expose up to
-four independently controlled views; players may enter different dungeon levels.
+This is a design brief, not implemented gameplay. Jan's 2026-10-11 clarification
+supersedes the original independent-view direction: prefer one shared screen like
+console Diablo III, with up to four independently controlled characters. The full
+Diablo game, quests, saves and platform/release requirements remain unchanged.
+Separate cameras and simultaneous different dungeon levels are no longer M0 gates.
 
-The initial [community survey](COMMUNITY-SURVEY.md) found upstream PR #8354 at
-`a010e2f0b8a951138eb628355bc4d3ab9cef6d37`. Its source uses a shared camera,
-one panel/store owner and coordinated level transitions. It provides useful local
-input/HUD references but does not satisfy independent views or different levels;
-do not treat a wholesale merge as the architecture proof.
+## Nonblocking personal UI contract
 
-The inspected baseline has global MyPlayer/MyPlayerId, camera/render and UI state, plus
-controller helpers querying any attached pad. Four viewports drawn in a loop around those
-globals alone would leak input, inventory, visibility and selection across players.
-A single-process context refactor must explicitly identify gameplay state versus each
-local client's state, including RNG/events, level loading, audio and save ownership.
+Opening inventory, equipment, spell selection, character details, merchant or another
+personal menu captures only that player's assigned controller. World simulation and
+other players' movement, attacks and spells continue. Closing a panel releases only
+its owner's UI state and must not forward a held menu button into a gameplay action.
+Two or more players can use personal panels simultaneously, with separate cursors,
+selection, carried items, transactions and player/save identity. A single global
+panelOwner/storeOwner or a global pause flag cannot satisfy this contract.
 
-Compare two viable approaches with measured evidence:
+Use compact, clearly owned overlays around the shared world; do not reduce the full
+original screen four ways. Keep the action readable at 1280×800. Shared-camera tracking
+must account for a player standing still in a panel: another player needs useful room
+to move and fight. Camera bounds, separation recovery and party-level travel need real
+playtesting; the plan does not promise unlimited separation or silently teleport heroes.
+Personal UI must survive or close safely on death, disconnect and level transition,
+without lost/duplicated items or abandoned pending merchant transactions.
 
-1. In-process per-client contexts: integrate view/controller ownership into the engine,
-   sharing only authoritative world state where upstream semantics permit it. Benefit:
-   native single window and low IPC cost. Risk: broad mutable globals and simultaneous
-   different dungeon levels; do not share state merely because it is currently global.
-2. Isolated local engine clients communicating over loopback, with a single SDL host
-   compositor and explicit per-client input/audio/frame transport. Benefit: reuse tested
-   multiplayer and isolate globals/saves. Risk: Deck CPU/memory, IPC and Windows process
-   handling. Clients must render without independent desktop windows or focus dependency;
-   this is not a tiled-window wrapper or external Windows-only Nucleus setup.
+First executed proof: one window, two characters/controllers, shared camera; player A
+sorts items while B walks, attacks and casts; reverse roles; both open inventories and
+move different cursors; close/reopen one without altering the other. Verify continuous
+world ticks, exact inventory ownership, disconnect-held-input cleanup, and normal solo
+behavior. Exercise real gameplay/input paths rather than testing just a UI state model.
+Then extend the same contract to four and measure frame pacing, memory and input latency.
+Physical Deck/four-pad and full-game progression evidence remain separate from bots,
+virtual controllers and shareware fixtures.
 
-Acceptance for the first spike: one window, two controllers/characters/cameras; one
-player in inventory while the other moves/casts; distinct level travel; independent
-profiles; clean quit and restart. Use real loopback protocol if clients are isolated,
-not fake split panes of a single player. Measure and record frame time and memory.
+## Reuse decision and bounded implementation
 
-Expand to four only once ownership/isolation is proven. Automated tests must cover
-controller instance ids, independent simultaneous inputs, hotplug, stuck held inputs,
-menus, inventory, targeting, character/save identity, death/rejoin and quest progression.
-On Deck use legible custom per-view UI at 1280×800; shrinking the entire original HUD
-four ways is not acceptance. Hardware tests and full-game playthrough remain separate
-from virtual SDL devices and shareware test data.
+The community survey inspected upstream PR8354 at
+`a010e2f0b8a951138eb628355bc4d3ab9cef6d37`: shared camera, coordinated level travel,
+and one panel/store owner. Shared-camera and per-player input/HUD work are now relevant
+reuse candidates. The single-owner UI is specifically insufficient for Jan's second
+clarification; do not merge the whole branch and call the requested behavior delivered.
+Audit attribution, pinned-baseline compatibility and focused regressions for each reused
+slice. No architecture or playable fork is selected/proven at this checkpoint.
+
+Prioritize an in-process shared-world camera and explicit per-player input/UI context.
+Inventory/render/selection globals and helpers polling every controller need audited
+ownership at both event and continuous-poll boundaries. Keep upstream world/network,
+quest and save semantics. Prototype two players before broad refactoring. Isolated
+clients with one compositor remain an unselected fallback if actual compatibility or
+performance evidence requires them; a process comparison is no longer a prerequisite
+merely to obtain independent cameras. Record measurements before a major architecture
+commitment. Do not substitute manually tiled windows for the product.
+
+## Historical independent-view investigation
+
+The following source boundaries were recorded before the shared-screen clarification.
+They remain useful fallback evidence, not requirements to implement worker processes,
+independent cameras or different levels in the first shared-screen slice.
 
 ## Baseline boundaries for the first experiment
 

@@ -71,5 +71,5 @@ ctest --preset ninja-vcpkg-debug --no-tests=error
 
 Record actual heads, run URLs, results and limitations in NOTES.md. Passing
 these tests establishes an upstream Debug baseline only. Shareware fixtures
-do not prove full Diablo quests, two loopback clients, independent splitscreen,
+do not prove full Diablo quests, local shared-screen co-op with nonblocking personal panels,
 performance or physical controller/Deck behavior. Those remain separate gates.
