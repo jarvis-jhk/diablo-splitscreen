@@ -1,3 +1,22 @@
+# Diablo Splitscreen — work in progress
+
+**Modified DevilutionX derivative maintained by jarvis-jhk.** Target: the full Diablo 1
+experience in one fullscreen window with up to four independent controllers, characters
+and camera views on Linux, Windows and Steam Deck. Local splitscreen is **not implemented
+yet** and this fork has no playable release yet.
+
+Planned releases include safe automatic updates and a controller-friendly startup changelog.
+See [ROADMAP.md](ROADMAP.md), [current status](NOTES.md) and
+[architecture investigation](docs/SPLITSCREEN.md). Existing controller and multiplayer
+support comes from [DevilutionX](https://github.com/diasurgical/DevilutionX).
+
+You must provide your own original Diablo game data (`DIABDAT.MPQ`); no copyrighted game
+assets are distributed here. This is a free, non-commercial derivative under the retained
+[Sustainable Use License](LICENSE.md), with upstream attribution below. It is not endorsed
+by Blizzard or by the upstream maintainers. Inherited upstream tags are not fork releases.
+
+---
+
 <p align="center">
   <img width="560" height="144" alt="image" src="https://github.com/user-attachments/assets/7ac73801-ef7b-4cc1-8442-a191a2a0a1ce" />
 </p>
