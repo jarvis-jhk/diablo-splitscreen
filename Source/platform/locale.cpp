@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <string_view>
 
 #if defined(__ANDROID__) && !defined(TERMUX)
