@@ -4,6 +4,12 @@ This is a design brief, not an implemented architecture. Preserve the complete D
 world and upstream network/gameplay behavior. One fullscreen window must expose up to
 four independently controlled views; players may enter different dungeon levels.
 
+The initial [community survey](COMMUNITY-SURVEY.md) found upstream PR #8354 at
+`a010e2f0b8a951138eb628355bc4d3ab9cef6d37`. Its source uses a shared camera,
+one panel/store owner and coordinated level transitions. It provides useful local
+input/HUD references but does not satisfy independent views or different levels;
+do not treat a wholesale merge as the architecture proof.
+
 The inspected baseline has global MyPlayer/MyPlayerId, camera/render and UI state, plus
 controller helpers querying any attached pad. Four viewports drawn in a loop around those
 globals alone would leak input, inventory, visibility and selection across players.

@@ -1,0 +1,96 @@
+name: Fork Debug baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Full source commit to build (upstream baseline by default)
+        required: true
+        default: '37551902752724327948a44db3e917e089598b37'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-baseline-${{ inputs.revision }}
+  cancel-in-progress: false
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: '2'
+  VCPKG_MAX_CONCURRENCY: '2'
+  SDL_VIDEODRIVER: dummy
+  SDL_AUDIODRIVER: dummy
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 0
+      - name: Record source and install dependencies
+        run: |
+          git rev-parse HEAD
+          sudo apt-get update -y
+          sudo apt-get install -y ninja-build g++-14 libsdl2-dev libsdl2-image-dev libsodium-dev libpng-dev libbz2-dev libgtest-dev libgmock-dev libbenchmark-dev gettext
+      - name: Configure Debug
+        env:
+          CC: gcc-14
+          CXX: g++-14
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTING=ON -DDEVILUTIONX_SYSTEM_BENCHMARK=OFF
+      - name: Fetch shareware test fixture
+        run: |
+          curl --fail --location --retry 2 https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq -o build/spawn.mpq
+          echo '64427cd7c1ba904eaa2e0031c16a6b136d0ecef9abc888c5ff8344b459356e38  build/spawn.mpq' | sha256sum --check
+      - name: Build game and tests
+        run: cmake --build build --parallel 2
+      - name: Run Debug tests
+        run: ctest --test-dir build --output-on-failure --no-tests=error --output-junit baseline-results.xml
+      - name: Retain test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: baseline-linux-debug-results
+          path: |
+            build/baseline-results.xml
+            build/Testing/Temporary/LastTest.log
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 0
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: lukka/get-cmake@latest
+      - uses: lukka/run-vcpkg@v11.6
+        with:
+          vcpkgGitCommitId: '40f3c709db80acf154ac4b17a1f83c564ebd022e'
+      - name: Record source and configure Debug
+        run: |
+          git rev-parse HEAD
+          Copy-Item Packaging/windows/CMakePresets.json CMakePresets.json
+          cmake --preset ninja-vcpkg-debug
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Fetch shareware test fixture
+        run: |
+          $path = 'build-ninja-vcpkg-debug/spawn.mpq'
+          Invoke-WebRequest -Uri 'https://github.com/diasurgical/devilutionx-assets/releases/download/v2/spawn.mpq' -OutFile $path
+          $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne '64427cd7c1ba904eaa2e0031c16a6b136d0ecef9abc888c5ff8344b459356e38') { throw 'Shareware test fixture checksum mismatch' }
+      - name: Build game and tests
+        run: cmake --build --preset ninja-vcpkg-debug --parallel 2
+      - name: Run native Windows Debug tests
+        run: ctest --preset ninja-vcpkg-debug --no-tests=error --output-junit baseline-results.xml
+      - name: Retain test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: baseline-windows-debug-results
+          path: |
+            build-ninja-vcpkg-debug/baseline-results.xml
+            build-ninja-vcpkg-debug/Testing/Temporary/LastTest.log

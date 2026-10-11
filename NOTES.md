@@ -17,9 +17,24 @@ Current Sustainable Use License allows free non-commercial derivatives and requi
 notices; this is source-available, not a claim of an OSI-approved open-source license.
 Retain LICENSE.md and upstream notices. Original Diablo data remains user-provided.
 
-Next slice: survey candidates, reproduce Debug baseline and design/prove two independently
-controlled views in one window. Keep actual build/test evidence here. No baseline build
-or hardware check has been done by the setup turn; no game implementation changed.
+Current slice: community survey complete; Debug baseline validation underway. See
+docs/COMMUNITY-SURVEY.md and docs/BASELINE.md. No game implementation changed.
+PR #8354 at a010e2f0b8a951138eb628355bc4d3ab9cef6d37 is a real experimental
+local-coop reference, but its source has a shared camera, exclusive panel/store owner
+and coordinated level travel. It is not the independent-view/different-level solution.
+
+Dedicated dispatch-only Fork Debug baseline CI builds the pinned3755190275 game
+source on Linux/GCC14 and native Windows/MSVC, tests enabled and max2 jobs. All30
+inherited fork workflows were disabled through Actions settings; definitions retained.
+No release workflow or playable package has been introduced. Test fixture spawn.mpq
+is ignored, downloaded from upstream assets and SHA256-checked; no full-game MPQs.
+
+Local configuration: Debian GCC12 is too old for the C++23 library requirements.
+Clang23 + matching libc++ configured Debug successfully. Vendored GoogleTest1.15.2
+also needs its matching googlemock include path for standalone tests; mixing the
+older system gmock headers caused a compile failure before gameplay code. Reconfigured
+with that include path, build running max2. Native CI remains required regardless.
+No runtime, full-data progression, physical controller or performance proof yet.
 Distribution, updates/changelog and central fault reporting are release requirements.
 Private JARVIS_REPORT_URL repo secret is configured; do not embed it in artifacts.
 The game/installer fault relay is pending the first executable slice.

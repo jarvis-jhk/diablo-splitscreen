@@ -8,7 +8,7 @@ input/rendering before expanding the release machinery or doing a large refactor
 
 - [x] Public fork preserving upstream history, dedicated lane, webhook and maintenance brief.
 - [x] Investigate upstream license, controllers, TCP multiplayer and full multiplayer quests.
-- [ ] Survey relevant community forks/mods and existing split-screen attempts; record evidence.
+- [x] Survey relevant community forks/mods and existing split-screen attempts; record evidence.
 - [ ] Reproduce Linux Debug/tests and Windows CI builds from the pinned baseline.
 - [ ] Back up user data and smoke upstream solo/controller and two-client loopback co-op.
 - [ ] Compare in-process contexts with isolated client workers + one compositor; measure
