@@ -166,3 +166,11 @@ configuration SHA256 is428ccefa2c7101ada1b7e678196a4d1507c1b26f627b89e12c491a9ac
 all game source remains unchanged. Agent TypeScript check passed before commit.
 Fresh native final-source CI remains the gate before selecting/implementing the
 two-player shared-screen/nonblocking inventory proof. No playable fork release.
+
+Sanitizer-config source f53af5e5dd702cb5300d718947db6f7dded08d13 is committed
+and pushed. Fresh native Linux/Windows Debug run38189532088 was accepted once,
+both jobs in progress at00:50UTC:
+https://github.com/jarvis-jhk/diablo-splitscreen/actions/runs/38189532088
+This new run is the current gate; portability run38170302962 is verified history.
+One continuation is scheduled; local probes/full suite need no redundant rebuild.
+No Signal progress, no playable release or architecture implementation.
