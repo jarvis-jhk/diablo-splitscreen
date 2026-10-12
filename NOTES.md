@@ -4,18 +4,27 @@ Authoritative direction: shared screen for up to four characters, with simultane
 personal inventories/menus that never block other players or pause world simulation.
 Jan's clarification replaces the initial independent-camera/different-level gates.
 
-Original and final two-include portability Linux/Windows Debug baselines are
-verified. Run38170302962 built source df52384a2 on both platforms: Linux584 and
-Windows558 cases, zero failures, the same two upstream pagination skips. Source
-SHA outputs and downloaded JUnit artifacts are verified.
+The baseline gate is complete for sanitizer-config source
+f53af5e5dd702cb5300d718947db6f7dded08d13. Native run38189532088 and both
+Linux/Windows jobs completed successfully. Actual source outputs and downloaded
+JUnit artifacts are verified: Linux584 (582 passed), Windows558 (556 passed),
+zero failures and the same two upstream pagination skips per platform.
 
-The local Clang sanitizer failure is now reproduced as mixed instrumentation in
-vendored GoogleTest/libc++ container templates: after archive reload, live vector
-entries remained poisoned. Matching sanitizer flags make the focused archive and
-original dungeon probes pass. The bounded vendored-test-library CMake fix passes the normal complete game/
-all56-test build and all584 local Debug cases (582 passed,2 upstream skips).
-A fresh native run is required for this new source.
-No architecture has been selected or implemented.
+The local Clang23/libc++ mixed-instrumentation issue is diagnosed and resolved:
+matching configured sanitizer flags on the four vendored GoogleTest/Mock targets
+passes focused positive/negative controls and normal full ASan/UBSan CTest584
+(582 passed,2 skips). Original failed43-exit evidence remains preserved.
+No suppression or gameplay workaround. All original/portability native results
+remain separate historical evidence; none was carried over to the current gate.
+
+There is no pending baseline CI continuation. Next bounded experiment is specified
+in docs/TWO-PLAYER-PROOF.md: audit selective PR8354 reuse, then exercise real
+in-process two-character input and simultaneous inventories in one shared world.
+This is a plan, not selected/proven architecture or implemented co-op. End this
+checkpoint slice here; no new implementation or redundant local rebuild.
+No playable fork release, full-game, physical controller/Deck or performance proof.
+
+## Historical setup and baseline observations (superseded where noted)
 
 Project initialized; no fork release or working local shared-screen co-op exists yet.
 Upstream baseline: 37551902752724327948a44db3e917e089598b37 (master at setup).
@@ -174,3 +183,35 @@ https://github.com/jarvis-jhk/diablo-splitscreen/actions/runs/38189532088
 This new run is the current gate; portability run38170302962 is verified history.
 One continuation is scheduled; local probes/full suite need no redundant rebuild.
 No Signal progress, no playable release or architecture implementation.
+
+## 2026-10-12 — sanitizer-config native baseline gate completed
+
+Native run38189532088 completed successfully, including both platform jobs:
+https://github.com/jarvis-jhk/diablo-splitscreen/actions/runs/38189532088
+Actual git rev-parse HEAD outputs confirm source f53af5e5dd702cb5300d718947db6f7dded08d13
+on both platforms; workflow head is the same. Verification completed01:21:50UTC.
+Linux584 cases:582 passed,0 failures,2 skips; Windows558:556 passed,0 failures,2 skips.
+Both skips are VisualStoreTest.Pagination_NextAndPrevious and Pagination_ResetsHighlight.
+
+Downloaded Linux JUnit ZIP artifact11721367434:60561 bytes, SHA256
+`a948842d6aa1e096cc4d7d7eb6b9be55da7da26aaf0a4813590082a7fb4065ba`.
+Windows artifact11721126885:58478 bytes, SHA256
+`becf9d99dcc229780a35772c1341692118f76043815dcc68d241b6fb9dd8a97e`.
+Both XML reports contain the expected nonempty case counts and no failures/errors.
+These are test artifacts, not playable packages. The local full584 sanitizer suite
+and focused controls already passed; no additional build was needed here.
+
+Baseline source portability and supported vendored-test sanitizer configuration are
+resolved within these evidence boundaries. Original/portability runs and original
+local43 LSan failures remain history. Two upstream skipped cases remain unverified;
+standalone local Clang23 benchmarks remain excluded for the documented upstream
+pedantic issue. CI's native default-target builds completed on both platforms.
+The consumed b2e78fba continuation is closed under the schedule lock, with no new
+baseline continuation. Recurring work/upstream schedules remain registered.
+
+Chosen next bounded proof is docs/TWO-PLAYER-PROOF.md, linked from the roadmap and
+architecture brief. It evaluates explicit in-process input/UI ownership and selective
+PR8354 reuse with real game/input/render paths, two simultaneously operated inventories,
+continuing world/combat/spells, held-input cleanup and measured runtime costs. The
+plan does not select the production architecture or establish runtime behavior.
+No source changes, playable release or Signal progress message in this checkpoint.

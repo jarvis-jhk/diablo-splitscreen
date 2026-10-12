@@ -52,6 +52,10 @@ performance evidence requires them; a process comparison is no longer a prerequi
 merely to obtain independent cameras. Record measurements before a major architecture
 commitment. Do not substitute manually tiled windows for the product.
 
+The next bounded audit and executed acceptance scenario are specified in
+[TWO-PLAYER-PROOF.md](TWO-PLAYER-PROOF.md). The baseline gate is complete; that
+proof is planned and must be executed before choosing the production architecture.
+
 ## Historical independent-view investigation
 
 The following source boundaries were recorded before the shared-screen clarification.

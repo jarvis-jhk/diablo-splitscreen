@@ -100,5 +100,18 @@ vendored GoogleTest/GoogleMock targets, using the same Debug/Release option
 expressions as game targets. Imported system/vcpkg test libraries are unchanged.
 No leak suppression, `detect_leaks=0` validation or gameplay change is involved.
 The debugger-only `detect_leaks=0` trace is not a sanitizer pass: LeakSanitizer
-cannot run under ptrace. Retest the complete local suite after the normal CMake
-build; a diagnostic relink alone is not final-source evidence.
+cannot run under ptrace. The complete normal CMake game/all56-test build and full local ASan/UBSan
+CTest584 subsequently passed (582 passed,0 failures,2 upstream skips); a diagnostic
+relink alone was not used as final-source evidence.
+
+## Completed sanitizer-config baseline
+
+Source/workflow `f53af5e5dd702cb5300d718947db6f7dded08d13` passed
+[native run38189532088](https://github.com/jarvis-jhk/diablo-splitscreen/actions/runs/38189532088).
+Both jobs and the workflow completed successfully. Actual source-output verification
+and downloaded JUnit XML confirm Linux584 and Windows558 cases, zero failures and
+only the two inherited VisualStore pagination skips on each platform. Artifact IDs,
+ZIP sizes and SHA256 hashes are recorded in NOTES.md. Original and portability-source
+runs are separate history. Supported baseline/sanitizer concerns are resolved;
+full-game data, shared-screen/personal UI, hardware and performance remain unproven.
+The next bounded experiment is [TWO-PLAYER-PROOF.md](TWO-PLAYER-PROOF.md).
