@@ -42,6 +42,8 @@ model alone is not the completed gameplay proof.
 Use one rendered window at 1280×800, two stable SDL device assignments and two
 distinct characters on the same level. Back up profiles first and run against
 separate disposable test profiles; never overwrite the user's saves or MPQs.
+(`--config-dir`/`--save-dir` keep startup's `diablo.ini` out of HOME — REA capture in
+docs/research/rea.md; capture a character-creating run before relying on it for saves.)
 Shareware fixtures establish only the scenario they can execute; full Diablo
 progression requires user-provided data and separate evidence.
 

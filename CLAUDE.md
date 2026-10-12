@@ -46,3 +46,8 @@ before a release announcement. Keep at most one CI continuation. Hardware eviden
 be marked separately: virtual controllers/bots do not certify four physical pads or Deck.
 Keep notes, roadmap and known limitations honest. Never promise a completed game based
 only on a launcher, an SDL grid, shareware or network smoke test.
+
+Reverse engineering: use REA (npm rea-agents, genuine package only) where source leaves
+original behaviour open, for process-behaviour captures and recorded crashes of our builds;
+see docs/research/rea.md. Original binaries are analysed locally only; never commit them
+or decompiled game code — record findings in our own words with the tool version.

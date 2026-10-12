@@ -239,3 +239,15 @@ PR8354 reuse with real game/input/render paths, two simultaneously operated inve
 continuing world/combat/spells, held-input cleanup and measured runtime costs. The
 plan does not select the production architecture or establish runtime behavior.
 No source changes, playable release or Signal progress message in this checkpoint.
+
+## 2026-10-12: REA adopted (docs/research/rea.md)
+
+Jan asked the game lanes to use REA (rea-agents 6.4.0, toolchain shared with the other
+lanes, outside the repo). First real question, from TWO-PLAYER-PROOF's disposable-profile
+requirement: two `rea capture-process` runs of the local Debug ASan build of dc3374e8b with
+shareware data to the main menu. With `--config-dir`/`--save-dir` the only effect was
+`diablo.ini` in the given config directory and HOME stayed untouched; the control run
+without them wrote `HOME/.local/share/diasurgical/devilution/diablo.ini`. Startup only — no
+character or save was created, so save isolation remains to be captured in the proof.
+No original Diablo.exe is available here, so Ghidra analysis of original behaviour waits
+for a user-supplied copy analysed locally. Scenarios/captures: JARVIS data/diablo/rea/.
