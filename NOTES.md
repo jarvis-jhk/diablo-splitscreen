@@ -24,6 +24,30 @@ This is a plan, not selected/proven architecture or implemented co-op. End this
 checkpoint slice here; no new implementation or redundant local rebuild.
 No playable fork release, full-game, physical controller/Deck or performance proof.
 
+## 2026-10-12 — monthly upstream maintenance (merged b0a3b7bab)
+
+Fetched upstream read-only. Five commits since baseline 3755190275 (all Gleb
+Mazovetskiy, FixedPoint series): c2080753e FixedPoint type, 92927ca91 player/item/
+monster HP and mana to Fixed10_6/Fixed26_6, c361e764c integer promotion, 7fdf19da3
+int comparison, b0a3b7bab AnimationInfo. Reviewed as a type-safety refactor: the
+writehero/pack/net-pack tests keep identical raw values, so hero/save/network formats
+are unchanged. Merge-tree was clean; no commits excluded. Merged as f3b99f0ce on
+master (no-ff). It touches player.h/HP/mana, which the two-player proof will edit;
+merging now keeps that later diff small.
+
+Evidence on exact head f3b99f0ce: local Clang23/libc++ ASan/UBSan Debug607 cases
+(605 passed,0 failures,2 upstream pagination skips; +23 new FixedPoint cases). Native
+run38207744868: Linux607 and Windows581 cases, 0 failures, the same 2 skips; job logs
+show git rev-parse f3b99f0ce; artifact zips match the API sha256 digests. Attempt1
+Windows failed only because gtest discovery for crawl_test.exe timed out after 5s
+at link time (an unrelated test, no compiler error); one rerun of that job passed. This is
+a runner flake, not a source regression; if it recurs, raise DISCOVERY_TIMEOUT
+in the fork workflow rather than retrying.
+
+Community: PR8354 still open at a010e2f0b8 (last update 2026-09-24); no new split-screen
+fork found by GitHub search since 2026-10-01; latest upstream release still 1.5.5.
+No release; next work remains docs/TWO-PLAYER-PROOF.md.
+
 ## Historical setup and baseline observations (superseded where noted)
 
 Project initialized; no fork release or working local shared-screen co-op exists yet.
