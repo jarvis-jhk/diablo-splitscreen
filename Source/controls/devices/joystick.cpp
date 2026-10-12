@@ -411,6 +411,12 @@ void Joystick::Remove(SDL_JoystickID instanceId)
 		const Joystick &joystick = joysticks_[i];
 		if (joystick.instance_id_ != instanceId)
 			continue;
+		// A disconnected device still owns the reference acquired by Add().
+#ifdef USE_SDL3
+		SDL_CloseJoystick(joystick.sdl_joystick_);
+#else
+		SDL_JoystickClose(joystick.sdl_joystick_);
+#endif
 		joysticks_.erase(joysticks_.begin() + i);
 		return;
 	}

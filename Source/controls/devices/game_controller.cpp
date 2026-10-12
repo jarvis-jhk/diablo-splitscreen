@@ -217,6 +217,12 @@ void GameController::Remove(SDL_JoystickID instanceId)
 		const GameController &controller = controllers_[i];
 		if (controller.instance_id_ != instanceId)
 			continue;
+		// A disconnected device still owns the reference acquired by Add().
+#ifdef USE_SDL3
+		SDL_CloseGamepad(controller.sdl_game_controller_);
+#else
+		SDL_GameControllerClose(controller.sdl_game_controller_);
+#endif
 		controllers_.erase(controllers_.begin() + i);
 		return;
 	}

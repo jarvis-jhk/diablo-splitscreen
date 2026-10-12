@@ -4,6 +4,16 @@ Authoritative direction: shared screen for up to four characters, with simultane
 personal inventories/menus that never block other players or pause world simulation.
 Jan's clarification replaces the initial independent-camera/different-level gates.
 
+Active bounded slice: `fix/controller-hotplug-handles`, SDL handle cleanup for the
+proof's disconnect/reconnect prerequisite. All six real SDL2 regression cases and
+the complete local Debug ASan/UBSan suite pass (613 cases,611 passed,2 unchanged
+upstream skips). Native Linux/Windows verification is pending; keep the branch in
+a draft PR until its exact-head source logs and test artifacts are verified. The
+PR and private `data/diablo/controller-hotplug.json` carry the source/run IDs.
+No new CI continuation is scheduled by this quota tick; do not dispatch twice or
+start another implementation while this gate is pending. Baseline results below
+are historical validation and do not certify this new source.
+
 The baseline gate is complete for sanitizer-config source
 f53af5e5dd702cb5300d718947db6f7dded08d13. Native run38189532088 and both
 Linux/Windows jobs completed successfully. Actual source outputs and downloaded
@@ -20,8 +30,8 @@ remain separate historical evidence; none was carried over to the current gate.
 There is no pending baseline CI continuation. Next bounded experiment is specified
 in docs/TWO-PLAYER-PROOF.md: audit selective PR8354 reuse, then exercise real
 in-process two-character input and simultaneous inventories in one shared world.
-This is a plan, not selected/proven architecture or implemented co-op. End this
-checkpoint slice here; no new implementation or redundant local rebuild.
+This is a plan, not selected/proven architecture or implemented co-op. That
+baseline checkpoint was completed before the hotplug prerequisite below.
 No playable fork release, full-game, physical controller/Deck or performance proof.
 
 ## 2026-10-12 — monthly upstream maintenance (merged b0a3b7bab)
@@ -239,3 +249,49 @@ PR8354 reuse with real game/input/render paths, two simultaneously operated inve
 continuing world/combat/spells, held-input cleanup and measured runtime costs. The
 plan does not select the production architecture or establish runtime behavior.
 No source changes, playable release or Signal progress message in this checkpoint.
+
+
+## 2026-10-12 — release SDL handles on controller/joystick removal
+
+The two-player proof's hotplug audit found both GameController::Remove and
+Joystick::Remove erase raw-pointer wrappers without closing the SDL reference
+opened by Add. SDL keeps disconnected handles alive until that reference is
+released. A gamepad also gets a separate raw-joystick registration, so each
+registry must close only its own reference. PR8354 at a010e2f0b8 contains the same
+missing cleanup; no community code was imported for this independent fix.
+
+Both removal paths now close their matching handle before erasing the entry.
+Unknown/repeated removal remains harmless, and the other registry, other devices
+and separately opened external SDL references retain their own lifetimes. SDL3
+uses its corresponding close APIs; SDL1 behavior is unchanged. Executed device
+coverage is SDL2 only; the virtual-device target requires SDL2 >=2.0.14.
+
+Six production-backend regression cases exercise controller-only/raw-joystick
+cleanup, both orders of dual registration removal, independently opened external
+references, repeated/unknown removal and twelve real SDL virtual-device hotplug
+cycles while a second device remains connected. All six fail with the unchanged
+pre-fix game source at 78c50d146, and all six pass with the fix. The tests use the
+real SDL event queue and HandleControllerAddedOrRemovedEvent for hotplug cycles;
+no mocked device handles or copied removal functions.
+
+Local Clang23/libc++ Debug ASan/UBSan game and all58 test executables built with
+max2 jobs. Full CTest613 completed in190.15s:611 passed,0 failures,2 unchanged
+VisualStore pagination skips. No sanitizer suppression or disabled leak checking.
+CLI --help exits0; this is only startup evidence. Test/source/backend hashes and
+positive/negative JUnit/logs are retained privately in data/diablo/hotplug-*.
+The four tested source file hashes remain unchanged before commit. Formatting of
+new code/test passes; Clang23's existing joystick.cpp line135 replacement is
+identical before/after the patch. Actual agent TypeScript compiler also passed.
+
+Native Linux and Windows Debug must still verify this pushed head before merging:
+require actual git rev-parse outputs, six executed ControllerHotplugTest cases on
+both platforms, no failures and only the two known pagination skips. Expected
+full totals are Linux613/Windows587. A single dispatch is requested after push;
+its live ID/link belong to the draft PR/private slice checkpoint. No schedule is
+added, no release or Signal announcement. This quota tick ends after this slice.
+
+This fixes SDL resource lifetime only. Global stick axes, padmapper/suppression
+state, assigned-player routing, simultaneous inventory/cursor/item ownership and
+held-action cleanup remain unproven and are still part of TWO-PLAYER-PROOF.md.
+The branch does not implement local co-op, select the production architecture or
+certify physical controllers/Deck, full-game progression, rendering or timing.

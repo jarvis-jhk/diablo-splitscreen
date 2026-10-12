@@ -49,6 +49,11 @@ set(tests
   char_panel_test
   game_menu_test
 )
+# Virtual hotplug tests exercise SDL2's real device handles, not mocked input.
+if(NOT USE_SDL1 AND NOT USE_SDL3 AND SDL2_VERSION VERSION_GREATER_EQUAL "2.0.14")
+  list(APPEND tests controller_hotplug_test)
+endif()
+
 set(standalone_tests
   cl2_to_clx_test
   codec_test
