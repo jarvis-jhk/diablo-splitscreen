@@ -1,13 +1,21 @@
-# Current state — 2026-10-11
+# Current state — 2026-10-12
 
 Authoritative direction: shared screen for up to four characters, with simultaneous
 personal inventories/menus that never block other players or pause world simulation.
 Jan's clarification replaces the initial independent-camera/different-level gates.
 
-Original Linux/Windows Debug baseline is verified. Final portability source
-df52384a2 compiles the complete local game/test suite and starts with --help;
-local Clang LeakSanitizer reports43 failed exits (see below). Fresh native
-final-source CI is pending. No architecture has been selected or implemented.
+Original and final two-include portability Linux/Windows Debug baselines are
+verified. Run38170302962 built source df52384a2 on both platforms: Linux584 and
+Windows558 cases, zero failures, the same two upstream pagination skips. Source
+SHA outputs and downloaded JUnit artifacts are verified.
+
+The local Clang sanitizer failure is now reproduced as mixed instrumentation in
+vendored GoogleTest/libc++ container templates: after archive reload, live vector
+entries remained poisoned. Matching sanitizer flags make the focused archive and
+original dungeon probes pass. The bounded vendored-test-library CMake fix passes the normal complete game/
+all56-test build and all584 local Debug cases (582 passed,2 upstream skips).
+A fresh native run is required for this new source.
+No architecture has been selected or implemented.
 
 Project initialized; no fork release or working local shared-screen co-op exists yet.
 Upstream baseline: 37551902752724327948a44db3e917e089598b37 (master at setup).
@@ -95,8 +103,8 @@ Private JARVIS_REPORT_URL repo secret is configured; do not embed it in artifact
 The game/installer fault relay is pending the first executable slice.
 
 Automation: regular Tue/Thu/Sat work sessions plus monthly upstream sweep are registered
-in JARVIS. Shared Sol quota dispatch was requested from self; it is not implemented by
-this bootstrap. Existing in-flight Siedler CI/claims remain intact.
+in JARVIS. Shared Sol quota dispatch is owned by JARVIS/self and is now active; this game
+lane does not implement or bypass its budget/reset/slot gates.
 
 Sources reviewed:
 - https://github.com/diasurgical/DevilutionX (README, platform support, MPQ requirements)
@@ -125,3 +133,36 @@ LeakSanitizer exits are preserved. No rebuild/re-dispatch for this documentation
 Next: finish existing baseline validation/triage, then bounded two-player shared-screen
 and nonblocking inventory proof. Exactly one continuation retains its existing time;
 its prompt now carries the authoritative changed product direction.
+
+## 2026-10-12 — native artifact verification and bounded sanitizer diagnosis
+
+Final portability source df52384a2b7835fc16cee3362f6dbbca08a8b2b6 passed native
+run38170302962. Linux artifact11714118499:584 cases,0 failures,2 upstream skips;
+Windows artifact11713808038:558 cases,0 failures,2 upstream skips. Downloaded
+ZIP hashes: Linux96d259c6466ff4bb8548fa67f6287eb34fdb9ff0cd3afaaf420132ea77b383f9,
+Windows92241b68df66e1f8f8899c20c132647c852626a49edc959b98f0a288ef373af9.
+The verifier now accepts GitHub's whole-job log packaging and checks the actual
+`git rev-parse HEAD` output on each platform; checkout inputs alone are insufficient.
+
+The original local584-case failing run remains historical failure evidence. A
+load/unload/reload probe with the real backend/test main/unsanitized GoogleTest
+reproduces poisoned live vector/string-pointer memory and a64-byte LeakSanitizer
+exit failure. Rebuilding only GoogleTest with ASan/UBSan makes those same addresses
+unpoisoned and the probe exit0. The unchanged original dungeon case also passes
+with the instrumented library. A fresh negative-control relink against unsanitized
+GoogleTest repeats the poison and64-byte report. Destructor tracing confirms both
+vector and string destruction; debugger-only leak-disabled runs are diagnostics,
+not sanitizer passes. See docs/BASELINE.md for the supported configuration.
+
+The fix propagates configured sanitizer flags to vendored gtest/gtest_main/gmock/
+gmock_main only. All four normal CMake compile commands carry ASan/UBSan in the
+local Debug cache. Imported system/vcpkg libraries and gameplay are unchanged.
+No suppressions or archive-clear workaround; no architecture/release/hardware claim.
+
+Normal CMake game/all56-test rebuild (max2 jobs) completed successfully. Full
+Clang23/libc++ ASan/UBSan CTest584 now passes:582 passed,0 failures,2 unchanged
+upstream pagination skips,173.89s. Game --help exits0. The precommit tested
+configuration SHA256 is428ccefa2c7101ada1b7e678196a4d1507c1b26f627b89e12c491a9ac729aa6e;
+all game source remains unchanged. Agent TypeScript check passed before commit.
+Fresh native final-source CI remains the gate before selecting/implementing the
+two-player shared-screen/nonblocking inventory proof. No playable fork release.

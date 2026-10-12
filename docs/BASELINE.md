@@ -73,3 +73,32 @@ Record actual heads, run URLs, results and limitations in NOTES.md. Passing
 these tests establishes an upstream Debug baseline only. Shareware fixtures
 do not prove full Diablo quests, local shared-screen co-op with nonblocking personal panels,
 performance or physical controller/Deck behavior. Those remain separate gates.
+
+## Vendored GoogleTest and sanitizer consistency
+
+Clang23/libc++ Debug initially executed all584 cases with539 passes,43 failed
+LeakSanitizer exits and2 upstream skips. The assertions passed in those43 cases;
+that original suite still failed and its evidence is retained. The64-byte report
+pointed at a live string in `OverridePaths`, not a missing vector destructor.
+
+A focused archive load/unload/reload probe reproduces the failure when linked
+with the same shared backend, test main and unsanitized vendored GoogleTest.
+After reload, ASan reports both the live vector element and its string-pointer
+field poisoned. libc++ template instantiations from the unsanitized test library
+can override instrumented instantiations used by the shared backend: reusing
+vector capacity then omits the annotation that makes the element addressable.
+LeakSanitizer ignores the poisoned pointer and incorrectly reports its allocation
+as unreachable. Debugger tracing separately confirms the vector/string destructors
+run; leak checking precedes shared-backend destruction. Plain vector/DSO probes
+without this mixed test-library configuration do not reproduce it.
+
+Rebuilding only GoogleTest with matching address/undefined sanitizers leaves
+the same archive probe's live element/pointer unpoisoned and its exit clean.
+The unchanged original dungeon case also exits clean when relinked with that
+library. The fork now applies its configured sanitizer flags to all four
+vendored GoogleTest/GoogleMock targets, using the same Debug/Release option
+expressions as game targets. Imported system/vcpkg test libraries are unchanged.
+No leak suppression, `detect_leaks=0` validation or gameplay change is involved.
+The debugger-only `detect_leaks=0` trace is not a sanitizer pass: LeakSanitizer
+cannot run under ptrace. Retest the complete local suite after the normal CMake
+build; a diagnostic relink alone is not final-source evidence.
