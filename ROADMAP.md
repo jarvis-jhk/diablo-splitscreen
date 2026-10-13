@@ -14,6 +14,10 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   Debug on that source, including actual source output and JUnit artifact hashes.
 - [x] Specify the next bounded two-player ownership/reuse experiment and acceptance scenario
   (docs/TWO-PLAYER-PROOF.md; planned behavior, no implementation proof yet).
+- [x] Bound the input/inventory/command/render ownership audit and PR8354 reuse decision
+  (docs/OWNERSHIP-AUDIT.md; source evidence only).
+- [ ] Prove explicit-device button/combo polling with two virtual SDL pads, including
+  both registration orders, split modifiers and executed negative control.
 - [ ] Back up user data and smoke upstream solo/controller and two-client loopback co-op.
 - [ ] Audit PR8354 shared-camera reuse against the pinned baseline; implement the smallest
   viable TWO-player shared-screen proof with measured frame time and memory.

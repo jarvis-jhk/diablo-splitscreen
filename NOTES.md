@@ -316,3 +316,36 @@ cases run on both, zero failures and only the two known VisualStore pagination s
 Merged into master; the only conflict was this file (both entries kept, chronological).
 Game/test source in the merge is byte-identical to the tested head. Still SDL2 virtual
 devices only — no SDL3 execution, physical pads, Deck or player/UI ownership claimed.
+
+## 2026-10-13 — bounded two-player ownership audit
+
+Continued t_mv61a3gt2opq4 after the usage pause. Existing hotplug merge401ad33aa
+was already committed; no previous source work was repeated. Live GitHub review
+found no open issues/PRs. Native baseline38212199406 remains successful on
+source dc3374e8b. Revalidated retained downloaded JUnit ZIP hashes and all six
+executed hotplug tests: Linux613/Windows587, zero failures, two known pagination
+skips each. Entire merge diff against that source contains Markdown only; game,
+tests and build configuration are identical. No fresh native merge-head run
+is claimed. The latest green38336348164 is inherited Xbox One CI, not baseline.
+
+Two inherited Xbox workflows were still active despite the original disable
+pass. Disabled xbox_nxdk/xbox_one through GitHub and verified the dedicated
+manual Fork Debug baseline is now the only active workflow. Source definitions
+are preserved. Private live snapshot: data/diablo/ownership-review-github.json.
+
+Completed docs/OWNERSHIP-AUDIT.md: finite device/input, navigation/cursor/items,
+command authority and rendering boundaries, restoration contract and selective
+PR8354 reuse decision. Concrete source-derived hazards include cross-device
+combos, shared release/suppression state, sender-blind same-tick command
+throttling, one panel rectangle/cursor and PR local-vs-remote item classification.
+The PR's first-match device exclusion can also hide a later eligible device.
+These are inspected scenarios, not executed failure tests. No PR code imported.
+
+The audit stops before a broad context refactor. Next bounded prerequisite is
+explicit-device button/combo polling with two real SDL virtual devices, both
+registration orders, raw-joystick fallback, split modifiers/removal, solo
+compatibility and an executed negative control; then native Debug Linux/Windows.
+Added Device polling to the combined roadmap. Two-player proof remains started
+and incomplete; its implementation and Personal inventories are not marked done.
+No world/UI architecture selected, runtime/screenshot/performance/hardware proof,
+playable release, new CI dispatch/continuation or Signal progress message.

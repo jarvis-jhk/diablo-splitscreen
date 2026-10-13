@@ -1,6 +1,6 @@
 # Next bounded proof: two players, one world, two inventories
 
-Status: planned, not implemented. The baseline gate is complete for source
+Status: ownership audit complete; runtime proof planned, not implemented. The baseline gate is complete for source
 `f53af5e5dd702cb5300d718947db6f7dded08d13`; see BASELINE.md and NOTES.md.
 This experiment evaluates in-process ownership before selecting a production
 architecture. End after its evidence/decision; do not expand it into four players,
@@ -36,6 +36,11 @@ The audit must produce a bounded field/caller list and identify restoration at
 input/render/world boundaries. If reliable isolation requires a broad unrelated
 refactor, stop with the concrete obstacle and a smaller next slice. An ownership
 model alone is not the completed gameplay proof.
+
+Source audit and bounded prerequisite: [OWNERSHIP-AUDIT.md](OWNERSHIP-AUDIT.md).
+It identifies device polling, padmapper lifecycle, shared navigation/cursor state,
+sender-blind command throttling and panel layout as concrete isolation boundaries.
+Next implement explicit-device button/combo polling before the full scenario.
 
 ## Executed acceptance scenario
 
