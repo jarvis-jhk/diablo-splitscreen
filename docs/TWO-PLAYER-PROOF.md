@@ -40,7 +40,8 @@ model alone is not the completed gameplay proof.
 Source audit and bounded prerequisite: [OWNERSHIP-AUDIT.md](OWNERSHIP-AUDIT.md).
 It identifies device polling, padmapper lifecycle, shared navigation/cursor state,
 sender-blind command throttling and panel layout as concrete isolation boundaries.
-Next implement explicit-device button/combo polling before the full scenario.
+Explicit-device button/combo polling is done (2026-10-15, NOTES.md); next prove
+per-seat stick axes and padmapper/held-action release before the full scenario.
 
 ## Executed acceptance scenario
 

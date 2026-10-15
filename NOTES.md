@@ -374,3 +374,8 @@ mirror that device's own state, not to map any button.
 Still open before the two-player proof: stick axes and padmapper/held-action state
 are global, and no gameplay/UI path routes by seat yet. No runtime, hardware, Deck
 or release claim. Evidence: JARVIS data/diablo/device-polling/.
+Native dispatch 38671325916 on exact head 1192a6e2f passed both jobs; logged
+`git rev-parse HEAD` printed it on Linux and Windows. Downloaded JUnit artifacts
+(sha256 576f5f0a… Linux, 53d66090… Windows): Linux 621 / Windows 595 cases, all 8
+ControllerDevicePollingTest and 6 hotplug cases executed, zero failures, only the
+two known pagination skips. Fast-forwarded into master; later commits are docs only.

@@ -66,6 +66,9 @@ virtual devices, both device registration orders, split modifiers, raw joystick
 fallback, unassigned devices and removal. Require an executed negative control
 and fresh native Linux/Windows Debug CI. This proves polling only; axes,
 padmapper lifecycle and gameplay/UI routing remain subsequent gates.
+Done 2026-10-15: `IsControllerButtonPressedOnDevice`,
+`IsControllerButtonComboPressedOnDevice` and `ControllerEventDevice`, native CI
+38671325916 (see NOTES.md). No caller uses them yet.
 
 ### Inventory, cursor and tooltip
 
