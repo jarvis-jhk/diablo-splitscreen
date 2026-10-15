@@ -46,6 +46,11 @@ public:
 
 	static GamepadLayout getLayout(const SDL_Event &event);
 
+	SDL_JoystickID instance_id() const
+	{
+		return instance_id_;
+	}
+
 private:
 #ifdef USE_SDL3
 	SDL_Gamepad *sdl_game_controller_ = nullptr;

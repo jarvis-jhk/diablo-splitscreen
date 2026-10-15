@@ -93,6 +93,40 @@ bool IsControllerButtonComboPressed(ControllerButtonCombo combo)
 	    && (combo.modifier == ControllerButton_NONE || IsControllerButtonPressed(combo.modifier));
 }
 
+bool IsControllerButtonPressedOnDevice(SDL_JoystickID device, ControllerButton button)
+{
+#ifndef USE_SDL1
+	const GameController *const controller = GameController::Get(device);
+	if (controller != nullptr && controller->IsPressed(button))
+		return true;
+#endif
+	const Joystick *const joystick = Joystick::Get(device);
+	return joystick != nullptr && joystick->IsPressed(button);
+}
+
+bool IsControllerButtonComboPressedOnDevice(SDL_JoystickID device, ControllerButtonCombo combo)
+{
+	return IsControllerButtonPressedOnDevice(device, combo.button)
+	    && (combo.modifier == ControllerButton_NONE || IsControllerButtonPressedOnDevice(device, combo.modifier));
+}
+
+SDL_JoystickID ControllerEventDevice(const SDL_Event &event)
+{
+#if HAS_KBCTRL == 1
+	if (!demo::IsRunning() && KbCtrlToControllerButton(event) != ControllerButton_NONE)
+		return -1;
+#endif
+#ifndef USE_SDL1
+	const GameController *const controller = GameController::Get(event);
+	if (controller != nullptr)
+		return controller->instance_id();
+#endif
+	const Joystick *const joystick = Joystick::Get(event);
+	if (joystick != nullptr)
+		return joystick->instance_id();
+	return -1;
+}
+
 bool HandleControllerAddedOrRemovedEvent(const SDL_Event &event)
 {
 #ifndef USE_SDL1

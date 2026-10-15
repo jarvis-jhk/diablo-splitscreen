@@ -349,3 +349,28 @@ Added Device polling to the combined roadmap. Two-player proof remains started
 and incomplete; its implementation and Personal inventories are not marked done.
 No world/UI architecture selected, runtime/screenshot/performance/hardware proof,
 playable release, new CI dispatch/continuation or Signal progress message.
+
+## 2026-10-15 — explicit-device button/combo polling (prerequisite only)
+
+Live GitHub check: no open issues/PRs; latest native baseline 38212199406 green.
+Added `IsControllerButtonPressedOnDevice`, `IsControllerButtonComboPressedOnDevice`
+and `ControllerEventDevice` (controller.h). A device is one SDL joystick instance;
+its gamepad and raw-joystick registrations are both consulted, as the any-device
+query does. A combo needs both buttons on the same device. The keyboard controller
+is not a device and stays on the solo path. Existing any-device queries and every
+caller are unchanged, so solo behavior is untouched; nothing uses the new API yet.
+
+New ControllerDevicePollingTest (8 cases, two to three real SDL2 virtual devices):
+solo compatibility, both registration orders, split modifier across pads (the old
+combo query still combines — asserted as the hazard), raw-joystick registration,
+raw-registration removal, unassigned/unknown devices, removal while held, and
+event-to-device resolution. Local Clang23 Debug ASan/UBSan: full suite 621 cases,
+619 pass, the 2 known VisualStore pagination skips, no failures. Negative control
+(per-device query returns the any-device answer): 4 cases fail with 12 failed
+assertions; source restored byte-identical before the positive run. On desktop
+builds no raw-joystick button mapping is defined, so the raw path is proven only to
+mirror that device's own state, not to map any button.
+
+Still open before the two-player proof: stick axes and padmapper/held-action state
+are global, and no gameplay/UI path routes by seat yet. No runtime, hardware, Deck
+or release claim. Evidence: JARVIS data/diablo/device-polling/.
