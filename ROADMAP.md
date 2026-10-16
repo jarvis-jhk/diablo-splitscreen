@@ -53,6 +53,10 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 - [ ] Startup changelog once per installed version, controller-readable and dismissible.
 - [ ] Nonblocking anonymous crash/failed-update reporting and local redacted diagnostics.
 - [ ] Verify downloads and both platform artifacts before publishing/announcing a release.
+- [ ] Warpzone (jarvis-jhk/warpzone, games/diablo-splitscreen.toml): tier 0 descriptor
+  listing release assets, launch path and the DIABDAT.MPQ/spawn.mpq data entry; keep it
+  in step with each release. A future own updater stays silent in a `.warpzone-managed`
+  install. No chat or free-text player content.
 
 ## M3 — hardware and maintenance
 
@@ -61,4 +65,6 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 - [ ] Physical Windows and desktop Linux four-controller checks; record actual hardware.
 - [ ] Full-game cooperative playthrough evidence; synthetic tests alone are insufficient.
 - [ ] Regular upstream maintenance and review of useful forks, documented migrations.
+- [ ] Online co-op through Warpzone (DevilutionX TCP co-op over its peer channel), after
+  the couch milestones (M1) are playable.
 - [ ] Optional Hellfire support only after the base Diablo goal; no distraction from M1.
