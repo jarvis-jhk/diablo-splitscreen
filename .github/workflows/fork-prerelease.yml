@@ -50,10 +50,10 @@ jobs:
           CC: gcc-14
           CXX: g++-14
         run: |
-          cmake -S. -Bbuild -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DDISCORD_INTEGRATION=OFF \
+          cmake -S. -Bbuild -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF -DDISCORD_INTEGRATION=OFF \
             -DDEVILUTIONX_SYSTEM_LIBSODIUM=OFF -DDEVILUTIONX_SYSTEM_BZIP2=OFF \
             -DDEVILUTIONX_FAULT_REPORTS=ON -DDIABLO_SPLITSCREEN_VERSION=${{ inputs.version }}
-          cmake --build build --parallel 2 --target devilutionx
+          cmake --build build --parallel 2
       - name: Package
         run: |
           set -euo pipefail
@@ -80,10 +80,19 @@ jobs:
           tar -cJf "$name.tar.xz" "$name"
           sha256sum "$name.tar.xz" > "$name.tar.xz.sha256"
           ./"$name"/devilutionx --version
+          # The AppImage bundles SDL2/SDL2_image and friends for systems (Steam Deck)
+          # that lack them; it reports fatal errors from inside the game only.
+          Packaging/nix/AppImage.sh build
+          mv devilutionx.appimage "$name.AppImage"
+          chmod +x "$name.AppImage"
+          sha256sum "$name.AppImage" > "$name.AppImage.sha256"
+          ./"$name.AppImage" --appimage-extract-and-run --version
       - uses: actions/upload-artifact@v7
         with:
           name: linux
-          path: diablo-splitscreen-v*-linux-x86_64.tar.xz*
+          path: |
+            diablo-splitscreen-v*-linux-x86_64.tar.xz*
+            diablo-splitscreen-v*-linux-x86_64.AppImage*
 
   windows:
     runs-on: windows-latest
@@ -153,4 +162,4 @@ jobs:
           cd dist
           gh release create "v${{ inputs.version }}" --repo "$GITHUB_REPOSITORY" --prerelease \
             --target "${{ inputs.revision }}" --title "Diablo Splitscreen v${{ inputs.version }} (test build)" \
-            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.xz *.zip SHA256SUMS
+            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.xz *.AppImage *.zip SHA256SUMS
