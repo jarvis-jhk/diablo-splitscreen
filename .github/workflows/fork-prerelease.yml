@@ -103,7 +103,8 @@ jobs:
           git rev-parse HEAD
           if ((git rev-parse HEAD) -ne '${{ inputs.revision }}') { throw 'wrong source' }
           Copy-Item Packaging/windows/CMakePresets.json CMakePresets.json
-          cmake --preset ninja-vcpkg-relwithdebinfo -DBUILD_TESTING=OFF -DDEVILUTIONX_FAULT_REPORTS=ON -DDIABLO_SPLITSCREEN_VERSION=${{ inputs.version }}
+          # PowerShell splits an unquoted -DNAME=0.1.0 at the dot; quote every -D.
+          cmake --preset ninja-vcpkg-relwithdebinfo "-DBUILD_TESTING=OFF" "-DDEVILUTIONX_FAULT_REPORTS=ON" "-DDIABLO_SPLITSCREEN_VERSION=${{ inputs.version }}"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build
         run: cmake --build --preset ninja-vcpkg-relwithdebinfo --parallel 2 --target devilutionx
