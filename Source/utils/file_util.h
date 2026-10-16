@@ -49,6 +49,12 @@ void CopyFileOverwrite(const char *from, const char *to);
 void RemoveFile(const char *path);
 FILE *OpenFile(const char *path, const char *mode);
 
+/**
+ * @brief Reads a path from the environment as UTF-8 (on Windows from the wide environment, so
+ * non-ASCII user names survive). Empty when the variable is unset.
+ */
+std::string GetEnvironmentPath(const char *name);
+
 #if defined(_WIN32) && !defined(DEVILUTIONX_WINDOWS_NO_WCHAR)
 std::unique_ptr<wchar_t[]> ToWideChar(std::string_view path);
 #endif

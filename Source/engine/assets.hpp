@@ -322,6 +322,15 @@ extern bool IsAssetIntegrityViolated;
  */
 [[nodiscard]] bool HasLooseLogicAssets();
 
+/**
+ * @brief The MPQ search directory for game data the Warpzone launcher found.
+ *
+ * The launcher passes the found source in `WARPZONE_DATA_DIABDAT` on every start: either a
+ * data file (DIABDAT.MPQ or spawn.mpq) or a directory. Returns that directory with a trailing
+ * separator, or an empty string when the value is unset or names nothing that exists.
+ */
+[[nodiscard]] std::string LauncherDataSearchPath(const char *value);
+
 void LoadCoreArchives();
 void LoadLanguageArchive();
 void LoadGameArchives();

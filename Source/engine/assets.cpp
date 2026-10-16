@@ -438,6 +438,33 @@ bool LoadMPQ(std::span<const std::string> paths, std::string_view mpqName, int p
 }
 #endif
 
+} // namespace
+
+std::string LauncherDataSearchPath(const char *value)
+{
+	if (value == nullptr || *value == '\0')
+		return {};
+	std::string dir(value);
+	if (!DirectoryExists(dir)) {
+		if (!FileExists(dir))
+			return {};
+#ifdef _WIN32
+		// The launcher may hand over either separator on Windows.
+		const size_t sep = dir.find_last_of("/\\");
+#else
+		const size_t sep = dir.find_last_of('/');
+#endif
+		if (sep == std::string::npos)
+			return {};
+		dir.resize(sep);
+	}
+	if (dir.empty() || (dir.back() != '/' && dir.back() != DirectorySeparator))
+		dir += DirectorySeparator;
+	return dir;
+}
+
+namespace {
+
 std::vector<std::string> GetMPQSearchPaths()
 {
 	std::vector<std::string> paths;
@@ -448,6 +475,12 @@ std::vector<std::string> GetMPQSearchPaths()
 	paths.push_back(paths::ConfigPath());
 	if (paths[0] == paths[1] || (paths.size() == 3 && (paths[0] == paths[2] || paths[1] == paths[2])))
 		paths.pop_back();
+
+	// Game data the Warpzone launcher found: used in place, no copy and no prompt. The player's
+	// own copy in the base/pref/config directories still wins.
+	std::string launcherData = LauncherDataSearchPath(GetEnvironmentPath("WARPZONE_DATA_DIABDAT").c_str());
+	if (!launcherData.empty() && std::find(paths.begin(), paths.end(), launcherData) == paths.end())
+		paths.push_back(std::move(launcherData));
 
 #if (defined(__unix__) || defined(__APPLE__)) && !defined(__ANDROID__) && !defined(__DJGPP__)
 	// `XDG_DATA_HOME` is usually the root path of `paths::PrefPath()`, so we only
