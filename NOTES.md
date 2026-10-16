@@ -22,6 +22,10 @@ Render 1280x800: JARVIS data/diablo/shared-camera-render/ (spread party, no edge
 Native gate run 38949357469 on f6d756a1d: Linux 643 / Windows 617, 0 failures, the 2 known
 pagination skips, all 20 LocalCoopTest cases on both; logged HEAD and artifact digests
 verified (JARVIS data/diablo/camera-native/). Release notes docs/release-notes/v0.1.3.md.
+Merged c8e15ddcb (merge adds Markdown only). Prerelease v0.1.3 published from it:
+https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.3 — assets downloaded,
+GitHub digests and SHA256SUMS match, packaged LOCAL-COOP.md has the shared camera, no game
+data (JARVIS data/diablo/release-v0.1.3/). Next version > v0.1.3. Open human test: real pads/Deck.
 Limits: guest inventory panels still cover the left of the view; no zoom-out when
 the party spreads.
 
