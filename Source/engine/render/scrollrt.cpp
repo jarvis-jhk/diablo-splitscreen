@@ -1445,6 +1445,7 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawDiabloMsg(out.subregionY(0, out.h() - GetMainPanel().size.height));
 	}
 
+	DrawLocalGuestInventories(out);
 	DrawLocalCoopHud(out);
 	DrawControllerModifierHints(out);
 	DrawPlrMsg(out);

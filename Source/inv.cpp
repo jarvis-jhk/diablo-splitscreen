@@ -1183,7 +1183,12 @@ void InitInv()
 
 void DrawInv(const Surface &out)
 {
-	ClxDraw(out, GetPanelPosition(UiPanels::Inventory, { 0, 351 }), (*pInvCels)[0]);
+	DrawInvPanel(out, *InspectPlayer, GetPanelPosition(UiPanels::Inventory), pcursinvitem);
+}
+
+void DrawInvPanel(const Surface &out, const Player &myPlayer, Point origin, int highlightItem)
+{
+	ClxDraw(out, origin + Displacement { 0, 351 }, (*pInvCels)[0]);
 
 	const Size slotSize[] = {
 		{ 2, 2 }, // head
@@ -1205,13 +1210,11 @@ void DrawInv(const Surface &out)
 		{ 133, 160 }, // chest
 	};
 
-	const Player &myPlayer = *InspectPlayer;
-
 	for (int slot = INVLOC_HEAD; slot < NUM_INVLOC; slot++) {
 		if (!myPlayer.InvBody[slot].isEmpty()) {
 			int screenX = slotPos[slot].x;
 			int screenY = slotPos[slot].y;
-			InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, { screenX, screenY }), { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
+			InvDrawSlotBack(out, origin + Displacement { screenX, screenY }, { slotSize[slot].width * InventorySlotSizeInPixels.width, slotSize[slot].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
 
 			const int cursId = myPlayer.InvBody[slot]._iCurs + CURSOR_FIRSTITEM;
 
@@ -1224,9 +1227,9 @@ void DrawInv(const Surface &out)
 			}
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
-			const Point position = GetPanelPosition(UiPanels::Inventory, { screenX, screenY });
+			const Point position = origin + Displacement { screenX, screenY };
 
-			if (pcursinvitem == slot) {
+			if (highlightItem == slot) {
 				ClxDrawOutline(out, GetOutlineColor(myPlayer.InvBody[slot], true), position, sprite);
 			}
 
@@ -1234,9 +1237,9 @@ void DrawInv(const Surface &out)
 
 			if (slot == INVLOC_HAND_LEFT) {
 				if (myPlayer.GetItemLocation(myPlayer.InvBody[slot]) == ILOC_TWOHAND) {
-					InvDrawSlotBack(out, GetPanelPosition(UiPanels::Inventory, slotPos[INVLOC_HAND_RIGHT]), { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
-					const int dstX = GetRightPanel().position.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
-					const int dstY = GetRightPanel().position.y + slotPos[INVLOC_HAND_RIGHT].y;
+					InvDrawSlotBack(out, origin + Displacement { slotPos[INVLOC_HAND_RIGHT].x, slotPos[INVLOC_HAND_RIGHT].y }, { slotSize[INVLOC_HAND_RIGHT].width * InventorySlotSizeInPixels.width, slotSize[INVLOC_HAND_RIGHT].height * InventorySlotSizeInPixels.height }, myPlayer.InvBody[slot]._iMagical);
+					const int dstX = origin.x + slotPos[INVLOC_HAND_RIGHT].x + (frameSize.width == InventorySlotSizeInPixels.width ? INV_SLOT_HALF_SIZE_PX : 0) - 1;
+					const int dstY = origin.y + slotPos[INVLOC_HAND_RIGHT].y;
 					ClxDrawBlended(out, { dstX, dstY }, sprite);
 				}
 			}
@@ -1247,7 +1250,7 @@ void DrawInv(const Surface &out)
 		if (myPlayer.InvGrid[i] != 0) {
 			InvDrawSlotBack(
 			    out,
-			    GetPanelPosition(UiPanels::Inventory, InvRect[i + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height },
+			    origin + Displacement { InvRect[i + SLOTXY_INV_FIRST].position.x, InvRect[i + SLOTXY_INV_FIRST].position.y } + Displacement { 0, InventorySlotSizeInPixels.height },
 			    InventorySlotSizeInPixels,
 			    myPlayer.InvList[std::abs(myPlayer.InvGrid[i]) - 1]._iMagical);
 		}
@@ -1259,8 +1262,8 @@ void DrawInv(const Surface &out)
 			const int cursId = myPlayer.InvList[ii]._iCurs + CURSOR_FIRSTITEM;
 
 			const ClxSprite sprite = GetInvItemSprite(cursId);
-			const Point position = GetPanelPosition(UiPanels::Inventory, InvRect[j + SLOTXY_INV_FIRST].position) + Displacement { 0, InventorySlotSizeInPixels.height };
-			if (pcursinvitem == ii + INVITEM_INV_FIRST) {
+			const Point position = origin + Displacement { InvRect[j + SLOTXY_INV_FIRST].position.x, InvRect[j + SLOTXY_INV_FIRST].position.y } + Displacement { 0, InventorySlotSizeInPixels.height };
+			if (highlightItem == ii + INVITEM_INV_FIRST) {
 				ClxDrawOutline(out, GetOutlineColor(myPlayer.InvList[ii], true), position, sprite);
 			}
 

@@ -23,6 +23,27 @@ Guest controls:
 | X | cast the selected spell at the nearest monster (or straight ahead) |
 | Y | select the next spell the hero knows |
 | B | drink a potion from the belt (life first if hurt, then mana) |
+| Back | open or close the guest's own inventory |
+
+## The guest's inventory
+
+Back on a guest's controller opens that guest's own inventory panel on the
+left of the screen (a second guest's panel opens beside it). Pad 1's inventory
+keeps opening on the right as before, and any number of panels can be open
+at the same time. Nothing pauses: monsters keep moving and fighting, and every
+other player keeps walking, fighting and casting while one sorts their pack.
+
+| Button | In the guest's inventory |
+|---|---|
+| Left stick / D-pad | move the guest's own slot cursor (hold to repeat) |
+| A | wear the selected item (swapping out what it replaces), take off a worn item, or use a potion, elixir, book or scroll |
+| Y | move the item between the pack and the belt |
+| X | drop the item on the ground in front of the hero |
+| B or Back | close the panel |
+
+The panel shows the guest's own equipment, pack and belt (the row under the
+panel), the name of the selected item and these buttons. While the panel is
+open the guest's hero stands still; the stick steers the cursor instead.
 
 The guest's life, mana and selected spell are shown at the top of the screen.
 Unplugging the guest's controller removes the guest; pad 1 keeps playing.
@@ -42,9 +63,13 @@ Unplugging the guest's controller removes the guest; pad 1 keeps playing.
 - **Guests are not saved.** A guest plays a copy of a saved hero; nothing it
   gains is written back. Your save files are never touched by a guest.
 - The camera follows pad 1; a guest cannot walk more than 7 tiles away from pad 1.
-- Guests have no inventory, character sheet, spellbook, merchant or dialogue yet,
-  and cannot spend stat points. Cursor spells (identify, repair, telekinesis,
-  town portal, golem, ...) are pad 1 only.
+- Guests have their own inventory, but no character sheet, spellbook, merchant
+  or dialogue yet, and cannot spend stat points. Cursor spells and scrolls
+  (identify, repair, telekinesis, town portal, golem, ...) and oils are pad 1 only.
+- A guest moves items with buttons, not by picking them up onto a cursor: items
+  go to the first free place in the pack, and gold cannot be split.
+- The guest's panel uses pad 1's class artwork for its background, and the
+  mouse does not interact with a guest's panel.
 - A guest does not use stairs or portals: the guest follows pad 1 to every level.
   A fallen guest gets back up when the party changes level.
 - Guests exist only in offline games, never in network games.

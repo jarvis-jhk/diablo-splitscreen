@@ -55,4 +55,10 @@ void MoveLocalGuestsToMyLevel();
 void PlaceLocalGuestsAfterLevelLoad(bool keepPositions);
 void DrawLocalCoopHud(const Surface &out);
 
+// A guest's own inventory panel: Back opens and closes it on the guest's pad.
+bool IsGuestInventoryOpen(const Player &player);
+/** @brief The guest's slot cursor (an inv_xy_slot), or -1 for a non-guest. */
+int GuestInventorySlot(const Player &player);
+void DrawLocalGuestInventories(const Surface &out);
+
 } // namespace devilution
