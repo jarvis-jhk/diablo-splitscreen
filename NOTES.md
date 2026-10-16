@@ -19,6 +19,9 @@ until the screen (not a wall) stops them, both in view, then closing up works; n
 guests = upstream camera. Local Clang23 Debug ASan/UBSan: all 20 pass. Negative
 control (IsSharedCameraActive false): both camera cases fail, source restored.
 Render 1280x800: JARVIS data/diablo/shared-camera-render/ (spread party, no edge gaps).
+Native gate run 38949357469 on f6d756a1d: Linux 643 / Windows 617, 0 failures, the 2 known
+pagination skips, all 20 LocalCoopTest cases on both; logged HEAD and artifact digests
+verified (JARVIS data/diablo/camera-native/). Release notes docs/release-notes/v0.1.3.md.
 Limits: guest inventory panels still cover the left of the view; no zoom-out when
 the party spreads.
 
