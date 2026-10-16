@@ -724,6 +724,20 @@ bool pfile_ui_set_hero_infos(bool (*uiAddHeroInfo)(_uiheroinfo *))
 	return true;
 }
 
+bool pfile_read_hero_summary(uint32_t saveNum, char (&name)[PlayerNameLength], HeroClass &heroClass, uint8_t &level)
+{
+	std::optional<SaveReader> archive = OpenSaveArchive(saveNum);
+	if (!archive)
+		return false;
+	PlayerPack pkplr;
+	if (!ReadHero(*archive, &pkplr) || pkplr.pClass >= GetNumPlayerClasses())
+		return false;
+	CopyUtf8(name, std::string_view(pkplr.pName, PlayerNameLength), PlayerNameLength);
+	heroClass = static_cast<HeroClass>(pkplr.pClass);
+	level = pkplr.pLevel;
+	return true;
+}
+
 void pfile_ui_set_class_stats(HeroClass playerClass, _uidefaultstats *classStats)
 {
 	const ClassAttributes &classAttributes = GetClassAttributes(playerClass);
