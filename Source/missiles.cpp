@@ -64,6 +64,7 @@
 #include "levels/tile_properties.hpp"
 #include "levels/trigs.h"
 #include "lighting.h"
+#include "localcoop.hpp"
 #include "monster.h"
 #include "utils/is_of.hpp"
 #include "utils/str_cat.hpp"
@@ -321,7 +322,7 @@ bool MonsterMHit(const Player &player, Monster &monster, int mindam, int maxdam,
 	if (resist)
 		dam >>= 2;
 
-	if (&player == MyPlayer)
+	if (IsLocalPlayer(player))
 		ApplyMonsterDamage(damageType, monster, Fixed26_6::fromRaw(dam));
 
 	if (monster.hasNoLife()) {
@@ -1180,7 +1181,7 @@ bool PlayerMHit(Player &player, Monster *monster, int dist, int mind, int maxd, 
 
 	if (resper > 0) {
 		damage -= damage * resper / 100;
-		if (&player == MyPlayer) {
+		if (IsLocalPlayer(player)) {
 			ApplyPlrDamage(damageType, player, damage, 0, deathReason);
 		}
 
@@ -1190,7 +1191,7 @@ bool PlayerMHit(Player &player, Monster *monster, int dist, int mind, int maxd, 
 		return true;
 	}
 
-	if (&player == MyPlayer) {
+	if (IsLocalPlayer(player)) {
 		ApplyPlrDamage(damageType, player, damage, 0, deathReason);
 	}
 

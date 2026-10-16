@@ -1,6 +1,9 @@
 # Next bounded proof: two players, one world, two inventories
 
-Status: ownership audit complete; runtime proof planned, not implemented. The baseline gate is complete for source
+Status (2026-10-16): first slice implemented and tested with virtual pads, see
+[LOCAL-COOP.md](LOCAL-COOP.md) and NOTES.md. Scenario steps 1–2 and the guest half of 4
+are covered; step 3 (two simultaneous inventories) is the next item. Original plan:
+ownership audit complete; runtime proof planned, not implemented. The baseline gate is complete for source
 `f53af5e5dd702cb5300d718947db6f7dded08d13`; see BASELINE.md and NOTES.md.
 This experiment evaluates in-process ownership before selecting a production
 architecture. End after its evidence/decision; do not expand it into four players,

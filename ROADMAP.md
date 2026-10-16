@@ -16,17 +16,19 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   (docs/TWO-PLAYER-PROOF.md; planned behavior, no implementation proof yet).
 - [x] Bound the input/inventory/command/render ownership audit and PR8354 reuse decision
   (docs/OWNERSHIP-AUDIT.md; source evidence only).
-- [ ] Prove explicit-device button/combo polling with two virtual SDL pads, including
+- [x] Prove explicit-device button/combo polling with two virtual SDL pads, including
   both registration orders, split modifiers and executed negative control.
 - [ ] Back up user data and smoke upstream solo/controller and two-client loopback co-op.
-- [ ] Audit PR8354 shared-camera reuse against the pinned baseline; implement the smallest
-  viable TWO-player shared-screen proof with measured frame time and memory.
+- [x] Implement the smallest viable TWO-player shared-screen proof (docs/LOCAL-COOP.md):
+  guest joins with Start, own hero, walk/attack/cast/damage/XP/pickup, pad 1 unchanged.
+  Frame time/memory not yet measured.
 - [ ] Prove exclusive controller routing and personal UI/player state: one inventory open
-  while the other moves/fights/casts; both inventories open with independent cursors.
+  while the other moves/fights/casts (done, virtual pads); both inventories open with
+  independent cursors (next: Personal inventories).
 - [ ] Personal menus, equipment, spell selection and merchants never globally pause or
   capture another controller; camera remains useful while a stationary player sorts items.
-- [ ] Evaluate in-process ownership first; retain isolated clients/compositor as an unselected
-  fallback if measured compatibility/performance evidence requires it.
+- [x] Evaluate in-process ownership first: selected (guest commands parsed as the guest,
+  IsLocalPlayer at authority sites); isolated clients stay an unused fallback.
 - [ ] Wire real crash and launch failures through anonymous fault relay into GitHub issues.
 
 ## M1 — complete 1–4-player couch game

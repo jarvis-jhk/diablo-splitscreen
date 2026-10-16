@@ -16,6 +16,7 @@
 #include "player.h"
 #include "tables/misdat.h"
 #include "tables/spelldat.h"
+#include "utils/attributes.h"
 #include "utils/is_of.hpp"
 
 namespace devilution {
@@ -235,7 +236,7 @@ public:
 	}
 };
 
-extern std::list<Missile> Missiles;
+extern DVL_API_FOR_TEST std::list<Missile> Missiles;
 extern bool MissilePreFlag;
 
 struct DamageRange {

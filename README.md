@@ -3,8 +3,10 @@
 **Modified DevilutionX derivative maintained by jarvis-jhk.** Target: the full Diablo 1
 experience on one shared screen with up to four independent controllers and characters
 on Linux, Windows and Steam Deck. Personal inventories and menus must let the other
-players keep playing. Local shared-screen co-op is **not implemented
-yet** and this fork has no playable release yet.
+players keep playing. A first two-player slice works: in an offline game a second
+controller joins with Start and plays its own hero on the shared screen
+([how to play and its limits](docs/LOCAL-COOP.md)). It is an early proof, not the
+finished couch game.
 
 Planned releases include safe automatic updates and a controller-friendly startup changelog.
 See [ROADMAP.md](ROADMAP.md), [current status](NOTES.md) and

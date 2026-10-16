@@ -44,7 +44,7 @@ extern std::string GamePassword;
 extern bool PublicGame;
 extern uint8_t gbDeltaSender;
 extern uint32_t player_state[MAX_PLRS];
-extern bool IsLoopback;
+extern DVL_API_FOR_TEST bool IsLoopback;
 
 void SwapGameDataLE(GameData &gameData);
 DVL_API_FOR_TEST std::string DescribeLeaveReason(leaveinfo_t leaveReason);

@@ -70,6 +70,7 @@
 #include "levels/trigs.h"
 #include "lighting.h"
 #include "loadsave.h"
+#include "localcoop.hpp"
 #include "lua/lua_event.hpp"
 #include "lua/lua_global.hpp"
 #include "menu.h"
@@ -198,6 +199,7 @@ void StartGame(interface_mode uMsg)
 
 void FreeGame()
 {
+	ResetLocalGuests();
 	FreeMonsterHealthBar();
 	FreeXPBar();
 	FreeControlPan();
@@ -737,6 +739,9 @@ void PrepareForFadeIn()
 
 void GameEventHandler(const SDL_Event &event, uint16_t modState)
 {
+	if (HandleLocalCoopEvent(event))
+		return;
+
 	[[maybe_unused]] const Options &options = GetOptions();
 	StaticVector<ControllerButtonEvent, 4> ctrlEvents = ToControllerButtonEvents(event);
 	for (const ControllerButtonEvent ctrlEvent : ctrlEvents) {
@@ -1525,6 +1530,8 @@ void GameLogic()
 	if (!ProcessInput()) {
 		return;
 	}
+	UpdateLocalGuests();
+	ProcessGuestCommands();
 	if (gbProcessPlayers) {
 		gGameLogicStep = GameLogicStep::ProcessPlayers;
 		ProcessPlayers();
@@ -1836,6 +1843,19 @@ uint32_t GetGameId()
 		return GameIdGenericMod;
 	return gbIsSpawn ? GameIdDiabloSpawn : GameIdDiabloFull;
 }
+
+#ifdef BUILD_TESTING
+void TestGameEventHandler(const SDL_Event &event, uint16_t modState)
+{
+	GameEventHandler(event, modState);
+}
+
+void TestGameLogic()
+{
+	GameLogic();
+	ClearLastSentPlayerCmd();
+}
+#endif
 
 void InitKeymapActions()
 {
@@ -3187,6 +3207,8 @@ std::expected<void, std::string> LoadGameLevelDungeon(bool firstflag, lvl_entry 
 void LoadGameLevelSyncPlayerEntry(lvl_entry lvldir)
 {
 	for (Player &player : Players) {
+		if (IsLocalGuest(player))
+			continue; // placed beside MyPlayer once its position is known
 		if (player.plractive && player.isOnActiveLevel() && (!player._pLvlChanging || &player == MyPlayer)) {
 			if (player._pHitPoints > 0) {
 				if (lvldir != ENTRY_LOAD)
@@ -3404,6 +3426,7 @@ std::expected<void, std::string> LoadGameLevel(bool firstflag, lvl_entry lvldir)
 	const _music_id neededTrack = GetLevelMusic(leveltype);
 
 	ClearFloatingNumbers();
+	MoveLocalGuestsToMyLevel();
 	LoadGameLevelStopMusic(neededTrack);
 	LoadGameLevelResetCursor();
 	SetRndSeedForDungeonLevel();
@@ -3457,6 +3480,7 @@ std::expected<void, std::string> LoadGameLevel(bool firstflag, lvl_entry lvldir)
 
 	SyncPortals();
 	LoadGameLevelSyncPlayerEntry(lvldir);
+	PlaceLocalGuestsAfterLevelLoad(lvldir == ENTRY_LOAD);
 
 	IncProgress();
 	IncProgress();

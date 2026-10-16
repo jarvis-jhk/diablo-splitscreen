@@ -39,6 +39,7 @@
 #include "levels/town.h"
 #include "levels/trigs.h"
 #include "lighting.h"
+#include "localcoop.hpp"
 #include "missiles.h"
 #include "monster.h"
 #include "monsters/validation.hpp"
@@ -1532,10 +1533,12 @@ size_t OnRequestAutoGetItem(const TCmdGItem &message, Player &player)
 		if (GetItemRecord(dwSeed, wCI, wIndx)) {
 			if (FindGetItem(dwSeed, wIndx, wCI) != -1) {
 				NetSendCmdGItem2(false, CMD_AGETITEM, MyPlayerId, message.bPnum, message);
-				if (message.bPnum != MyPlayerId)
-					SyncGetItem(position, dwSeed, wIndx, wCI);
+				// A local co-op guest picks up on this machine; only a remote
+				// player's pickup is a mere removal from our world.
+				if (message.bPnum < Players.size() && IsLocalPlayer(Players[message.bPnum]))
+					AutoGetItem(Players[message.bPnum], &Items[message.bCursitem], message.bCursitem);
 				else
-					AutoGetItem(*MyPlayer, &Items[message.bCursitem], message.bCursitem);
+					SyncGetItem(position, dwSeed, wIndx, wCI);
 				SetItemRecord(dwSeed, wCI, wIndx);
 			} else if (!NetSendCmdReq2(CMD_REQUESTAGITEM, *MyPlayer, message.bPnum, message)) {
 				NetSendCmdExtra(message);

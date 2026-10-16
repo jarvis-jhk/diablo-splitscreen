@@ -1,6 +1,8 @@
 #include "controls/controller.h"
 
+#include <algorithm>
 #include <cmath>
+#include <vector>
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
@@ -17,6 +19,12 @@
 #include "utils/sdl_compat.h"
 
 namespace devilution {
+
+namespace {
+
+std::vector<SDL_JoystickID> ClaimedDevices;
+
+} // namespace
 
 void UnlockControllerState(const SDL_Event &event)
 {
@@ -76,15 +84,28 @@ StaticVector<ControllerButtonEvent, 4> ToControllerButtonEvents(const SDL_Event 
 
 bool IsControllerButtonPressed(ControllerButton button)
 {
-#ifndef USE_SDL1
-	if (GameController::IsPressedOnAnyController(button))
-		return true;
-#endif
 #if HAS_KBCTRL == 1
 	if (!demo::IsRunning() && IsKbCtrlButtonPressed(button))
 		return true;
 #endif
-	return Joystick::IsPressedOnAnyJoystick(button);
+	if (ClaimedDevices.empty()) {
+#ifndef USE_SDL1
+		if (GameController::IsPressedOnAnyController(button))
+			return true;
+#endif
+		return Joystick::IsPressedOnAnyJoystick(button);
+	}
+#ifndef USE_SDL1
+	for (const GameController &controller : GameController::All()) {
+		if (!IsControllerDeviceClaimed(controller.instance_id()) && controller.IsPressed(button))
+			return true;
+	}
+#endif
+	for (const Joystick &joystick : Joystick::All()) {
+		if (!IsControllerDeviceClaimed(joystick.instance_id()) && joystick.IsPressed(button))
+			return true;
+	}
+	return false;
 }
 
 bool IsControllerButtonComboPressed(ControllerButtonCombo combo)
@@ -125,6 +146,25 @@ SDL_JoystickID ControllerEventDevice(const SDL_Event &event)
 	if (joystick != nullptr)
 		return joystick->instance_id();
 	return -1;
+}
+
+void SetControllerDeviceClaimed(SDL_JoystickID device, bool claimed)
+{
+	const auto it = std::find(ClaimedDevices.begin(), ClaimedDevices.end(), device);
+	if (claimed && it == ClaimedDevices.end())
+		ClaimedDevices.push_back(device);
+	else if (!claimed && it != ClaimedDevices.end())
+		ClaimedDevices.erase(it);
+}
+
+bool IsControllerDeviceClaimed(SDL_JoystickID device)
+{
+	return device != -1 && std::find(ClaimedDevices.begin(), ClaimedDevices.end(), device) != ClaimedDevices.end();
+}
+
+bool IsControllerEventFromClaimedDevice(const SDL_Event &event)
+{
+	return !ClaimedDevices.empty() && IsControllerDeviceClaimed(ControllerEventDevice(event));
 }
 
 bool HandleControllerAddedOrRemovedEvent(const SDL_Event &event)

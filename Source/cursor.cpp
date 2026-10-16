@@ -454,6 +454,11 @@ void InitCursor()
 	ClearCursor();
 }
 
+bool IsCursorLoaded()
+{
+	return static_cast<bool>(pCursCels);
+}
+
 void FreeCursor()
 {
 	pCursCels = std::nullopt;

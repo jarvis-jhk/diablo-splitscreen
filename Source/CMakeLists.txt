@@ -19,6 +19,7 @@ set(libdevilutionx_SRCS
   interfac.cpp
   inv.cpp
   loadsave.cpp
+  localcoop.cpp
   menu.cpp
   minitext.cpp
   missiles.cpp
