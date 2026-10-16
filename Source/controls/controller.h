@@ -32,6 +32,13 @@ bool IsControllerButtonComboPressedOnDevice(SDL_JoystickID device, ControllerBut
 // keyboard controller and for events from no registered device.
 SDL_JoystickID ControllerEventDevice(const SDL_Event &event);
 
+// A claimed device belongs to a local co-op guest. The solo path (any-device
+// queries, stick motion) then ignores it, so a guest's held button or stick can
+// never act for the main player.
+void SetControllerDeviceClaimed(SDL_JoystickID device, bool claimed);
+bool IsControllerDeviceClaimed(SDL_JoystickID device);
+bool IsControllerEventFromClaimedDevice(const SDL_Event &event);
+
 bool HandleControllerAddedOrRemovedEvent(const SDL_Event &event);
 
 } // namespace devilution

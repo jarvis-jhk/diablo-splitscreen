@@ -29,6 +29,7 @@ extern DVL_API_FOR_TEST int pcurs;
 
 void InitCursor();
 void FreeCursor();
+bool IsCursorLoaded();
 void ResetCursor();
 
 struct Item;

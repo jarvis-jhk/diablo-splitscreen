@@ -1,4 +1,53 @@
-# Current state — 2026-10-12
+# Current state — 2026-10-16
+
+**Two-player proof implemented** (branch `localcoop-two-player`, see docs/LOCAL-COOP.md).
+In an offline multiplayer game the first pad pressed is pad 1; Start on another pad
+joins a guest hero (next saved hero, read only, else a fresh level-1 hero) beside pad 1.
+`Source/localcoop.{hpp,cpp}`: the guest's device is claimed (controller.cpp: any-device
+queries and stick motion skip it), its commands are queued and parsed with the guest as
+sender (ParseCmd, never MyPlayer's loopback), and `IsLocalPlayer` replaces `== MyPlayer`
+at the authority sites only: damage taken (monster melee, missiles), hits/kills on
+monsters, experience split, light, death without remote item wipe, auto-pickup
+(OnRequestAutoGetItem gives a local guest the item instead of deleting it). UI,
+cursor, sounds and network sends stay MyPlayer's. Guests follow pad 1 on every level
+load, fallen guests revive there, a 7-tile leash keeps them on pad 1's camera.
+
+Evidence: test/localcoop_test.cpp, 11 cases, boots a real offline game on spawn.mpq and
+drives two SDL2 virtual pads through FetchMessage -> GameEventHandler -> GameLogic:
+join, pad-1 menu unchanged, each pad moves only its hero, leash, held guest buttons and
+triggers never reach pad 1, guest kills a monster and gains XP while pad 1's inventory
+stays open, monsters hurt only the guest, guest Firebolt uses guest mana, pickup into
+the guest's own inventory, level follow, unplug removes only the guest. Local Clang23
+Debug ASan/UBSan: all 11 pass; polling 8 and hotplug 6 still pass. Negative controls,
+source restored byte-identical after each: claims disabled -> 3 isolation cases fail;
+IsLocalPlayer reduced to MyPlayer -> XP, damage and pickup cases fail. The same suite
+with LOCALCOOP_RENDER_DIR runs through the real renderer (Xvfb 1280x800) and saved
+screenshots (JARVIS data/diablo/localcoop-render/): both heroes in the cathedral with pad
+1's inventory open next to the guest's fight, guest HUD, Firebolt in flight.
+Virtual pads only: physical controllers and the Deck remain Jan's test.
+
+Found on the way: CreatePlayer loads and frees cursor sprites itself, so a fresh guest
+hero mid-game must free/reload the cursor around it (IsCursorLoaded). Upstream Start
+alone is pad 1's menu-navigator modifier; the game menu is Back+Start.
+
+Known limits (docs/LOCAL-COOP.md): guests are not saved, have no panels/stats/shops,
+no stairs/portals of their own, camera follows pad 1, offline games only.
+Fault relay (brief: first executable slice): Source/fault_report.cpp posts
+"Diablo Splitscreen <version> <Linux|Windows> fatal error" from app_fatal through a
+detached curl to public ntfy topic diablo-splitscreen-faults-747d46c7c1c4de46; only in
+builds configured with DEVILUTIONX_FAULT_REPORTS=ON (the prerelease workflow), opt-out
+DEVILUTIONX_NO_REPORT=1. The Linux launcher reports crash signals after exit. Windows
+SEH crashes are not reported yet. .github/workflows/fault-reports.yml turns posts into
+fault-report issues and forwards new ones via JARVIS_REPORT_URL; *-test/dev builds are
+skipped. Only app_fatal/ErrDlg/asserts report; missing MPQs, read-only folders and mod data errors
+do not (player setup, not a fault). Verified locally: a report reached the topic, and
+after narrowing, a missing-data start posts nothing. Guest pickups no
+longer close pad 1's gold dialog.
+Release path: .github/workflows/fork-prerelease.yml (exact revision, Linux tar.xz +
+Windows zip, SHA256SUMS verified, GitHub prerelease with docs/release-notes/v<version>.md).
+Next: native CI gate, then prerelease v0.1.0 for Jan; then Personal inventories.
+
+# State — 2026-10-12
 
 Authoritative direction: shared screen for up to four characters, with simultaneous
 personal inventories/menus that never block other players or pause world simulation.

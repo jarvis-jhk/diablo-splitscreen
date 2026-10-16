@@ -1,0 +1,594 @@
+#include <gtest/gtest.h>
+
+#include <SDL.h>
+
+#include <filesystem>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "capture.h"
+#include "controls/controller.h"
+#include "controls/devices/game_controller.h"
+#include "controls/devices/joystick.h"
+#include "cursor.h"
+#include "diablo.h"
+#include "engine/assets.hpp"
+#include "engine/backbuffer_state.hpp"
+#include "engine/events.hpp"
+#include "engine/palette.h"
+#include "engine/render/scrollrt.h"
+#include "engine/sound.h"
+#include "game_mode.hpp"
+#include "gmenu.h"
+#include "init.hpp"
+#include "inv.h"
+#include "items.h"
+#include "levels/dun_tile_data.hpp"
+#include "levels/gendung.h"
+#include "levels/tile_properties.hpp"
+#include "localcoop.hpp"
+#include "lua/lua_global.hpp"
+#include "missiles.h"
+#include "monster.h"
+#include "multi.h"
+#include "options.h"
+#include "player.h"
+#include "qol/monhealthbar.h"
+#include "qol/xpbar.h"
+#include "spells.h"
+#include "storm/storm_net.hpp"
+#include "tables/monstdat.h"
+#include "tables/playerdat.hpp"
+#include "tables/spelldat.h"
+#include "utils/display.h"
+#include "utils/paths.h"
+#include "utils/utf8.hpp"
+
+namespace devilution {
+void TestGameEventHandler(const SDL_Event &event, uint16_t modState);
+void TestGameLogic();
+} // namespace devilution
+
+using namespace devilution;
+
+namespace {
+
+// Two SDL2 virtual gamepads drive a real offline multiplayer game through the
+// production event path (FetchMessage -> GameEventHandler -> GameLogic) on
+// spawn.mpq. Virtual pads say nothing about physical controllers or the Deck.
+class VirtualPad {
+public:
+	VirtualPad()
+	{
+		const int index = SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER, SDL_CONTROLLER_AXIS_MAX, SDL_CONTROLLER_BUTTON_MAX, 0);
+		EXPECT_GE(index, 0) << SDL_GetError();
+		id_ = SDL_JoystickGetDeviceInstanceID(index);
+		handle_ = SDL_JoystickOpen(index);
+	}
+
+	~VirtualPad()
+	{
+		Unplug();
+	}
+
+	void Unplug()
+	{
+		if (handle_ == nullptr)
+			return;
+		SDL_JoystickClose(handle_);
+		handle_ = nullptr;
+		for (int index = 0; index < SDL_NumJoysticks(); ++index) {
+			if (SDL_JoystickGetDeviceInstanceID(index) == id_) {
+				SDL_JoystickDetachVirtual(index);
+				break;
+			}
+		}
+	}
+
+	void Button(SDL_GameControllerButton button, bool down)
+	{
+		SDL_JoystickSetVirtualButton(handle_, button, down ? 1 : 0);
+	}
+
+	void Axis(SDL_GameControllerAxis axis, int16_t value)
+	{
+		SDL_JoystickSetVirtualAxis(handle_, axis, value);
+	}
+
+	SDL_JoystickID id() const { return id_; }
+
+private:
+	SDL_JoystickID id_ = -1;
+	SDL_Joystick *handle_ = nullptr;
+};
+
+void Pump()
+{
+	SDL_Event event;
+	uint16_t modState;
+	while (FetchMessage(&event, &modState)) {
+		if (event.type != 0)
+			TestGameEventHandler(event, modState);
+	}
+}
+
+void Tick(int count = 1)
+{
+	for (int i = 0; i < count; i++) {
+		Pump();
+		ProcessGameMessagePackets();
+		TestGameLogic();
+	}
+}
+
+void Press(VirtualPad &pad, SDL_GameControllerButton button)
+{
+	pad.Button(button, true);
+	Tick();
+	pad.Button(button, false);
+	Tick();
+}
+
+template <typename Predicate>
+bool TickUntil(Predicate predicate, int maxTicks)
+{
+	for (int i = 0; i < maxTicks; i++) {
+		if (predicate())
+			return true;
+		Tick();
+	}
+	return predicate();
+}
+
+// Pad 1 walks through the ordinary upstream path; some directions may be
+// walled off at the stairs, so try each until pad 1's hero has moved.
+bool WalkPadOne(VirtualPad &pad)
+{
+	const Point start = MyPlayer->position.tile;
+	for (const auto [axis, value] : { std::pair { SDL_CONTROLLER_AXIS_LEFTX, 32767 }, std::pair { SDL_CONTROLLER_AXIS_LEFTY, 32767 },
+	         std::pair { SDL_CONTROLLER_AXIS_LEFTX, -32767 }, std::pair { SDL_CONTROLLER_AXIS_LEFTY, -32767 } }) {
+		pad.Axis(axis, static_cast<int16_t>(value));
+		const bool moved = TickUntil([&] { return MyPlayer->position.tile != start; }, 40);
+		pad.Axis(axis, 0);
+		Tick(20);
+		if (moved)
+			return true;
+	}
+	return false;
+}
+
+// With LOCALCOOP_RENDER_DIR set, the same scenarios run through the real
+// renderer (not HeadlessMode) and save screenshots there.
+std::string RenderDir;
+
+void Snapshot(const std::string &name)
+{
+	if (RenderDir.empty())
+		return;
+	const std::filesystem::path pref = paths::PrefPath();
+	for (const auto &entry : std::filesystem::directory_iterator(pref)) {
+		if (entry.path().filename().string().rfind("Screenshot", 0) == 0)
+			std::filesystem::remove(entry.path());
+	}
+	gbRunGame = true; // DrawAndBlit only draws a running game
+	RedrawEverything();
+	CaptureScreen();
+	gbRunGame = false;
+	for (const auto &entry : std::filesystem::directory_iterator(pref)) {
+		if (entry.path().filename().string().rfind("Screenshot", 0) == 0) {
+			std::filesystem::copy_file(entry.path(), std::filesystem::path(RenderDir) / (name + ".png"), std::filesystem::copy_options::overwrite_existing);
+			std::filesystem::remove(entry.path());
+		}
+	}
+}
+
+Player &Guest()
+{
+	for (Player &player : Players) {
+		if (IsLocalGuest(player))
+			return player;
+	}
+	ADD_FAILURE() << "no guest";
+	return Players[1];
+}
+
+void LoadLevel(uint8_t level)
+{
+	FreeGameMem();
+	setlevel = false;
+	currlevel = level;
+	leveltype = GetLevelType(level);
+	MyPlayer->setLevel(level);
+	ASSERT_TRUE(LoadGameLevel(level == 0, ENTRY_MAIN).has_value());
+	if (!RenderDir.empty())
+		UpdateSystemPalette(logical_palette);
+}
+
+// Moves an existing level monster onto a free tile next to the target.
+Monster &MonsterNextTo(Point target, Point awayFrom)
+{
+	Monster *chosen = nullptr;
+	for (size_t i = 0; i < ActiveMonsterCount; i++) {
+		Monster &monster = Monsters[ActiveMonsters[i]];
+		if (monster.getId() >= MAX_PLRS && !monster.isPlayerMinion() && !monster.hasNoLife() && monster.uniqueType == UniqueMonsterType::None && monster.exp(sgGameInitInfo.nDifficulty) > 0) {
+			chosen = &monster;
+			break;
+		}
+	}
+	EXPECT_NE(chosen, nullptr);
+	Monster &monster = *chosen;
+	std::optional<Point> free;
+	int bestDistance = 0;
+	for (const Direction dir : { Direction::South, Direction::SouthWest, Direction::West, Direction::NorthWest, Direction::North, Direction::NorthEast, Direction::East, Direction::SouthEast }) {
+		const Point p = target + dir;
+		if (IsTileSolid(p) || dMonster[p.x][p.y] != 0 || dPlayer[p.x][p.y] != 0 || dObject[p.x][p.y] != 0)
+			continue;
+		const int distance = p.WalkingDistance(awayFrom);
+		if (!free || distance > bestDistance) {
+			free = p;
+			bestDistance = distance;
+		}
+	}
+	EXPECT_TRUE(free.has_value());
+	dMonster[monster.position.tile.x][monster.position.tile.y] = 0;
+	dMonster[monster.position.future.x][monster.position.future.y] = 0;
+	monster.position.tile = *free;
+	monster.position.future = *free;
+	monster.position.old = *free;
+	dMonster[free->x][free->y] = static_cast<int16_t>(monster.getId() + 1);
+	M_StartStand(monster, GetDirection(*free, target));
+	return monster;
+}
+
+class LocalCoopTest : public ::testing::Test {
+public:
+	static void SetUpTestSuite()
+	{
+		if (const char *dir = SDL_getenv("LOCALCOOP_RENDER_DIR"); dir != nullptr && *dir != '\0') {
+			RenderDir = dir;
+			HeadlessMode = false;
+		}
+		ASSERT_EQ(SDL_Init(SDL_INIT_EVENTS | SDL_INIT_GAMECONTROLLER | (RenderDir.empty() ? 0 : SDL_INIT_VIDEO)), 0) << SDL_GetError();
+		LoadCoreArchives();
+		LoadGameArchives();
+		HaveData = HaveMainData();
+		if (!HaveData)
+			return;
+
+		SaveDir = (std::filesystem::temp_directory_path() / "devilutionx-localcoop-test/").string();
+		std::filesystem::remove_all(SaveDir);
+		std::filesystem::create_directories(SaveDir);
+		paths::SetPrefPath(SaveDir);
+		paths::SetConfigPath(SaveDir);
+
+		InitKeymapActions();
+		InitPadmapActions();
+		LoadOptions();
+		LuaInitialize();
+		gbIsSpawn = true;
+		gbIsHellfire = false;
+		gbMusicOn = false;
+		gbSoundOn = false;
+		LoadSpellData();
+		LoadPlayerDataFiles();
+		LoadMissileData();
+		LoadMonsterData();
+		LoadItemData();
+		LoadObjectData();
+		if (!RenderDir.empty()) {
+			forceResolution = { 1280, 800 };
+			init_create_window();
+			InitItemGFX();
+		}
+	}
+
+	static void TearDownTestSuite()
+	{
+		if (HaveData) {
+			LuaShutdown();
+			std::filesystem::remove_all(SaveDir);
+		}
+		SDL_Quit();
+	}
+
+protected:
+	void SetUp() override
+	{
+		if (!HaveData)
+			GTEST_SKIP() << "MPQ assets (spawn.mpq or DIABDAT.MPQ) not found - skipping test";
+		StartOfflineMultiplayerGame();
+	}
+
+	void TearDown() override
+	{
+		if (!HaveData)
+			return;
+		padB_.reset();
+		padA_.reset();
+		Tick();
+		FreeGameMem();
+		FreeCursor();
+		ResetLocalGuests();
+		gbIsMultiplayer = false;
+		SNetLeaveGame(leaveinfo_t::LEAVE_EXIT);
+		Players.clear();
+		MyPlayer = nullptr;
+	}
+
+	// What NetInit and SetupLocalPositions do for "Multi Player > Offline",
+	// without the menus: a loopback provider, four player slots, pad 1's hero.
+	void StartOfflineMultiplayerGame()
+	{
+		gbIsMultiplayer = true;
+		InitGameInfo();
+		GameData gameData { };
+		gameData.size = sizeof(gameData);
+		// Outside HeadlessMode this would open the hero selection menu.
+		const bool headless = HeadlessMode;
+		HeadlessMode = true;
+		const bool provider = SNetInitializeProvider(SELCONN_LOOPBACK, &gameData);
+		HeadlessMode = headless;
+		ASSERT_TRUE(provider);
+		int playerId = 0;
+		ASSERT_TRUE(SNetCreateGame("local", "local", reinterpret_cast<char *>(&gameData), sizeof(gameData), &playerId));
+		ASSERT_TRUE(IsLoopback);
+
+		Players.clear();
+		Players.resize(MAX_PLRS);
+		MyPlayerId = 0;
+		MyPlayer = &Players[0];
+		InspectPlayer = MyPlayer;
+		CreatePlayer(*MyPlayer, HeroClass::Warrior);
+		CopyUtf8(MyPlayer->_pName, "PadOne", PlayerNameLength);
+		MyPlayer->plractive = true;
+		MyPlayer->position.tile = { 75, 68 };
+		MyPlayer->position.future = MyPlayer->position.tile;
+		for (uint32_t i = 0; i < NUMLEVELS; i++)
+			DungeonSeeds[i] = 0x5eed0000 + i;
+
+		CalcViewportGeometry();
+		InitCursor(); // after CreatePlayer, which loads and frees it itself
+		gmenu_init_menu();
+		if (!RenderDir.empty()) {
+			InitMonsterHealthBar();
+			InitXPBar();
+		}
+		LoadLevel(0);
+		InitLevelCursor();
+		gbProcessPlayers = true; // RunGameLoop: Diablo is alive
+		Tick();
+
+		padA_.emplace();
+		padB_.emplace();
+		Tick();
+		ASSERT_NE(GameController::Get(padA_->id()), nullptr);
+		ASSERT_NE(GameController::Get(padB_->id()), nullptr);
+	}
+
+	void JoinGuest()
+	{
+		Press(*padA_, SDL_CONTROLLER_BUTTON_BACK); // pad 1 is the first pad pressed; Back alone does nothing
+		Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+		ASSERT_EQ(LocalGuestCount(), 1u);
+	}
+
+	void EnterDungeon()
+	{
+		LoadLevel(1);
+		Tick(3);
+	}
+
+	static inline bool HaveData = false;
+	static inline std::string SaveDir;
+	std::optional<VirtualPad> padA_;
+	std::optional<VirtualPad> padB_;
+};
+
+TEST_F(LocalCoopTest, StartOnASecondPadJoinsAGuestBesidePadOne)
+{
+	JoinGuest();
+	const Player &guest = Guest();
+	EXPECT_NE(&guest, MyPlayer);
+	EXPECT_TRUE(guest.plractive);
+	EXPECT_TRUE(guest.isOnActiveLevel());
+	EXPECT_LE(guest.position.tile.WalkingDistance(MyPlayer->position.tile), 2);
+	EXPECT_EQ(LocalGuestOnDevice(padB_->id()), guest.getId());
+	EXPECT_TRUE(IsControllerDeviceClaimed(padB_->id()));
+	EXPECT_FALSE(IsControllerDeviceClaimed(padA_->id()));
+	// The guest's Start never reached pad 1's game menu.
+	EXPECT_FALSE(gmenu_is_active());
+	Snapshot("00-guest-joined-in-town");
+}
+
+TEST_F(LocalCoopTest, StartOnPadOneStillOpensItsMenuAndJoinsNobody)
+{
+	Press(*padA_, SDL_CONTROLLER_BUTTON_START);
+	EXPECT_EQ(LocalGuestCount(), 0u);
+	// Back+Start is pad 1's game menu, unchanged.
+	padA_->Button(SDL_CONTROLLER_BUTTON_BACK, true);
+	Tick();
+	Press(*padA_, SDL_CONTROLLER_BUTTON_START);
+	padA_->Button(SDL_CONTROLLER_BUTTON_BACK, false);
+	Tick();
+	EXPECT_EQ(LocalGuestCount(), 0u);
+	EXPECT_TRUE(gmenu_is_active());
+}
+
+TEST_F(LocalCoopTest, EachPadMovesOnlyItsOwnHero)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	const Point guestStart = guest.position.tile;
+	const Point myStart = MyPlayer->position.tile;
+
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
+	ASSERT_TRUE(TickUntil([&] { return guest.position.tile != guestStart; }, 60));
+	Tick(20);
+	EXPECT_EQ(MyPlayer->position.tile, myStart);
+	EXPECT_EQ(MyPlayer->walkpath[0], WALK_NONE);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	Tick(20);
+	const Point guestStop = guest.position.tile;
+
+	ASSERT_TRUE(WalkPadOne(*padA_));
+	EXPECT_EQ(guest.position.tile, guestStop);
+}
+
+TEST_F(LocalCoopTest, AGuestCannotWalkOffTheSharedScreen)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTY, 32767);
+	Tick(400);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTY, 0);
+	Tick(20);
+	EXPECT_LE(guest.position.tile.WalkingDistance(MyPlayer->position.tile), 7);
+}
+
+TEST_F(LocalCoopTest, HeldGuestButtonsNeverReachPadOne)
+{
+	JoinGuest();
+	padB_->Button(SDL_CONTROLLER_BUTTON_X, true);
+	padB_->Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 32767);
+	Tick(2);
+	EXPECT_FALSE(IsControllerButtonPressed(ControllerButton_BUTTON_X));
+	EXPECT_FALSE(invflag); // pad 1's inventory trigger, held on the guest pad
+	padA_->Button(SDL_CONTROLLER_BUTTON_X, true);
+	Tick(2);
+	EXPECT_TRUE(IsControllerButtonPressed(ControllerButton_BUTTON_X));
+	padA_->Button(SDL_CONTROLLER_BUTTON_X, false);
+	padB_->Button(SDL_CONTROLLER_BUTTON_X, false);
+	padB_->Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 0);
+	Tick(2);
+}
+
+TEST_F(LocalCoopTest, GuestFightsAndGainsExperienceWhilePadOneInventoryIsOpen)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+
+	padA_->Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 32767);
+	Tick(2);
+	padA_->Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 0);
+	Tick(2);
+	ASSERT_TRUE(invflag);
+
+	Monster &monster = MonsterNextTo(guest.position.tile, MyPlayer->position.tile);
+	monster.hitPoints = Fixed26_6::fromInt(1);
+	Tick(2);
+	Snapshot("01-pad1-inventory-open-guest-next-to-monster");
+	const uint32_t myExperience = MyPlayer->_pExperience;
+	ASSERT_EQ(guest._pExperience, 0u);
+
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, true); // held: keeps attacking
+	const bool killed = TickUntil([&] { return monster.hasNoLife() || monster.mode == MonsterMode::Death; }, 600);
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, false);
+	Tick(2);
+	ASSERT_TRUE(killed);
+	Snapshot("02-guest-killed-monster-while-pad1-inventory-open");
+	EXPECT_GT(guest._pExperience, 0u);
+	EXPECT_EQ(MyPlayer->_pExperience, myExperience);
+	EXPECT_TRUE(invflag) << "pad 1's inventory stayed open throughout";
+}
+
+TEST_F(LocalCoopTest, MonstersHurtTheGuestNotPadOne)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	// Keep pad 1 out of reach so the monster's only target is the guest.
+	Monster &monster = MonsterNextTo(guest.position.tile, MyPlayer->position.tile);
+	monster.hitPoints = monster.maxHitPoints = Fixed26_6::fromInt(500);
+	const Fixed26_6 myLife = MyPlayer->_pHitPoints;
+	const Fixed26_6 guestLife = guest._pHitPoints;
+	ASSERT_TRUE(TickUntil([&] { return guest._pHitPoints < guestLife; }, 1500));
+	Snapshot("04-monster-hurts-guest");
+	EXPECT_EQ(MyPlayer->_pHitPoints, myLife);
+}
+
+TEST_F(LocalCoopTest, GuestCastsItsOwnSpellWithItsOwnMana)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	guest._pMemSpells |= GetSpellBitmask(SpellID::Firebolt);
+	guest._pSplLvl[static_cast<int8_t>(SpellID::Firebolt)] = 1;
+	guest._pMana = guest._pMaxMana = guest._pManaBase = guest._pMaxManaBase = Fixed26_6::fromInt(50);
+	const Fixed26_6 myMana = MyPlayer->_pMana;
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_Y); // select the newly learned spell
+	Press(*padB_, SDL_CONTROLLER_BUTTON_X);
+	const auto guestFirebolt = [&] {
+		for (Missile &missile : Missiles) {
+			if (missile._mitype == MissileID::Firebolt && missile.sourcePlayer() == &guest)
+				return true;
+		}
+		return false;
+	};
+	ASSERT_TRUE(TickUntil(guestFirebolt, 60));
+	Tick(3);
+	Snapshot("03-guest-casts-firebolt");
+	EXPECT_LT(guest._pMana, Fixed26_6::fromInt(50));
+	EXPECT_EQ(MyPlayer->_pMana, myMana);
+}
+
+int Possessions(const Player &player)
+{
+	int count = player._pNumInv + player._pGold;
+	for (const Item &item : player.SpdList)
+		count += item.isEmpty() ? 0 : 1;
+	for (const Item &item : player.InvBody)
+		count += item.isEmpty() ? 0 : 1;
+	return count;
+}
+
+TEST_F(LocalCoopTest, GuestPicksUpAnItemIntoItsOwnInventory)
+{
+	JoinGuest(); // in town: no monster to attack first
+	Player &guest = Guest();
+	const int guestBefore = Possessions(guest);
+	const int mineBefore = Possessions(*MyPlayer);
+	CreateRndItem(guest.position.tile + Direction::SouthEast, /*onlygood=*/true, false, false); // town gold is worth 0
+	Tick();
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, true);
+	const bool picked = TickUntil([&] { return Possessions(guest) > guestBefore; }, 200);
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, false);
+	Tick();
+	EXPECT_TRUE(picked);
+	EXPECT_EQ(Possessions(*MyPlayer), mineBefore);
+}
+
+TEST_F(LocalCoopTest, GuestFollowsPadOneToTheNextLevel)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	EXPECT_TRUE(guest.isOnLevel(1));
+	EXPECT_LE(guest.position.tile.WalkingDistance(MyPlayer->position.tile), 2);
+	EXPECT_EQ(dPlayer[guest.position.tile.x][guest.position.tile.y], guest.getId() + 1);
+}
+
+TEST_F(LocalCoopTest, UnpluggingTheGuestPadRemovesOnlyTheGuest)
+{
+	JoinGuest();
+	EnterDungeon();
+	const uint8_t guestId = Guest().getId();
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, true);
+	Tick();
+	padB_->Unplug();
+	Tick(3);
+	EXPECT_EQ(LocalGuestCount(), 0u);
+	EXPECT_FALSE(Players[guestId].plractive);
+	EXPECT_TRUE(MyPlayer->plractive);
+
+	EXPECT_TRUE(WalkPadOne(*padA_));
+}
+
+} // namespace

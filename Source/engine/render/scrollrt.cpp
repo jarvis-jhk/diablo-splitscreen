@@ -48,6 +48,7 @@
 #include "levels/gendung.h"
 #include "levels/tile_properties.hpp"
 #include "lighting.h"
+#include "localcoop.hpp"
 #include "lua/lua_event.hpp"
 #include "minitext.h"
 #include "missiles.h"
@@ -1444,6 +1445,7 @@ void DrawView(const Surface &out, Point startPosition)
 		DrawDiabloMsg(out.subregionY(0, out.h() - GetMainPanel().size.height));
 	}
 
+	DrawLocalCoopHud(out);
 	DrawControllerModifierHints(out);
 	DrawPlrMsg(out);
 	gmenu_draw(out);

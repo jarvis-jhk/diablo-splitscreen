@@ -77,7 +77,7 @@ extern DVL_API_FOR_TEST Point MousePosition;
 
 extern bool gbRunGameResult;
 extern bool ReturnToMainMenu;
-extern bool gbProcessPlayers;
+extern DVL_API_FOR_TEST bool gbProcessPlayers;
 extern DVL_API_FOR_TEST bool gbLoadGame;
 extern bool cineflag;
 /* These are defined in fonts.h */
@@ -90,6 +90,7 @@ extern char gszProductName[64];
 extern PlayerActionType LastPlayerAction;
 
 void InitKeymapActions();
+void InitPadmapActions();
 void SetCursorPos(Point position);
 void FreeGameMem();
 bool StartGame(bool bNewGame, bool bSinglePlayer);

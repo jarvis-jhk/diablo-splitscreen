@@ -12,6 +12,7 @@ set(libdevilutionx_SRCS
   diablo.cpp
   diablo_msg.cpp
   doom.cpp
+  fault_report.cpp
   gamemenu.cpp
   gmenu.cpp
   help.cpp
@@ -19,6 +20,7 @@ set(libdevilutionx_SRCS
   interfac.cpp
   inv.cpp
   loadsave.cpp
+  localcoop.cpp
   menu.cpp
   minitext.cpp
   missiles.cpp
@@ -1135,6 +1137,12 @@ file(GENERATE OUTPUT ${CONFIG_PATH} CONTENT
 #define PROJECT_VERSION_MINOR ${PROJECT_VERSION_MINOR}
 #define PROJECT_VERSION_PATCH ${PROJECT_VERSION_PATCH}
 ")
+
+option(DEVILUTIONX_FAULT_REPORTS "Send anonymous fault reports (release builds of this fork)" OFF)
+set(DIABLO_SPLITSCREEN_VERSION "dev" CACHE STRING "Fork version reported by fault reports")
+if(DEVILUTIONX_FAULT_REPORTS)
+  target_compile_definitions(libdevilutionx PRIVATE DEVILUTIONX_FAULT_REPORTS DIABLO_SPLITSCREEN_VERSION="${DIABLO_SPLITSCREEN_VERSION}")
+endif()
 
 if(DISCORD_INTEGRATION)
   target_compile_definitions(libdevilutionx PRIVATE DISCORD)

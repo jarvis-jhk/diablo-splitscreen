@@ -1740,7 +1740,8 @@ void AutoGetItem(Player &player, Item *itemPointer, int ii)
 {
 	Item &item = *itemPointer;
 
-	CloseGoldDrop();
+	if (&player == MyPlayer)
+		CloseGoldDrop(); // pad 1's dialog; a local co-op guest's pickup leaves it alone
 
 	if (dItem[item.position.x][item.position.y] == 0)
 		return;

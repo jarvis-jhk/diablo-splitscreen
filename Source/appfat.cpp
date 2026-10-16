@@ -20,6 +20,7 @@
 
 #include "diablo.h"
 #include "dvlnet/leaveinfo.hpp"
+#include "fault_report.hpp"
 #include "multi.h"
 #include "storm/storm_net.hpp"
 #include "utils/format.hpp"
@@ -66,8 +67,11 @@ void DisplayFatalErrorAndExit(std::string_view title, std::string_view body)
 	diablo_quit(1);
 }
 
+// Only internal errors are reported; missing game data, a read-only folder or a
+// broken mod are the player's setup, not a fault of this build.
 void app_fatal(std::string_view str)
 {
+	ReportFault("fatal error");
 	DisplayFatalErrorAndExit(_("Error"), str);
 }
 
@@ -80,6 +84,7 @@ void assert_fail(int nLineNo, const char *pszFile, const char *pszFail)
 
 void ErrDlg(const char *title, std::string_view error, std::string_view logFilePath, int logLineNr)
 {
+	ReportFault("error");
 	DisplayFatalErrorAndExit(
 	    title,
 	    FormatRuntime(_(/* TRANSLATORS: Error message that displays relevant information for bug report */ "{:s}\n\nThe error occurred at: {:s} line {:d}"),

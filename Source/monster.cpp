@@ -68,6 +68,7 @@
 #include "levels/tile_properties.hpp"
 #include "levels/trigs.h"
 #include "lighting.h"
+#include "localcoop.hpp"
 #include "lua/lua_event.hpp"
 #include "minitext.h"
 #include "missiles.h"
@@ -1206,7 +1207,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	if (blkper < blk) {
 		const Direction dir = GetDirection(player.position.tile, monster.position.tile);
 		StartPlrBlock(player, dir);
-		if (&player == MyPlayer && player.wReflections > 0) {
+		if (IsLocalPlayer(player) && player.wReflections > 0) {
 			Fixed26_6 dam = Fixed26_6::fromRaw(GenerateRnd(((maxDam - minDam) << 6) + 1) + (minDam << 6));
 			dam = std::max(dam + Fixed26_6::fromInt(player._pIGetHit), Fixed26_6::fromInt(1));
 			CheckReflect(monster, player, dam);
@@ -1219,7 +1220,7 @@ void MonsterAttackPlayer(Monster &monster, Player &player, int hit, int minDam, 
 	// New method fixes a bug which caused the maximum possible damage value to be 63/64ths too low.
 	Fixed26_6 dam = Fixed26_6::fromRaw(RandomIntBetween(minDam << 6, maxDam << 6));
 	dam = std::max(dam + Fixed26_6::fromInt(player._pIGetHit), Fixed26_6::fromInt(1));
-	if (&player == MyPlayer) {
+	if (IsLocalPlayer(player)) {
 		if (player.wReflections > 0) {
 			const Fixed26_6 reflectedDamage = CheckReflect(monster, player, dam);
 			dam = std::max(dam - reflectedDamage, Fixed26_6::fromInt(0));
@@ -3890,7 +3891,7 @@ void ApplyMonsterDamage(DamageType damageType, Monster &monster, Fixed26_6 damag
 
 void MonsterReducePlayerAttribute(Monster &monster, Player &player)
 {
-	if (&player != MyPlayer)
+	if (!IsLocalPlayer(player))
 		return;
 
 	if (monster.reducePlayerStrength > 0) {

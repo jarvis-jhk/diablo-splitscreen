@@ -192,6 +192,8 @@ bool IsControllerMotion(const SDL_Event &event)
 // Updates motion state for mouse and joystick sticks.
 void ProcessControllerMotion(const SDL_Event &event)
 {
+	if (IsControllerEventFromClaimedDevice(event))
+		return;
 #ifndef USE_SDL1
 	GameController *const controller = GameController::Get(event);
 	if (controller != nullptr && devilution::GameController::ProcessAxisMotion(event)) {

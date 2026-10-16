@@ -29,7 +29,7 @@ namespace devilution {
 #define MAXTILES 1379
 
 extern DVL_API_FOR_TEST uint8_t currlevel;
-extern bool setlevel;
+extern DVL_API_FOR_TEST bool setlevel;
 
 enum class DungeonFlag : uint8_t {
 	// clang-format off
@@ -86,7 +86,7 @@ extern WorldTilePosition dmaxPosition;
 /** Specifies the active dungeon type of the current game. */
 extern DVL_API_FOR_TEST dungeon_type leveltype;
 /** Specifies the active quest level of the current game. */
-extern _setlevels setlvlnum;
+extern DVL_API_FOR_TEST _setlevels setlvlnum;
 /** Specifies the dungeon type of the active quest level of the current game. */
 extern dungeon_type setlvltype;
 /** Specifies the player viewpoint X,Y-coordinates of the map. */
@@ -108,14 +108,14 @@ extern uint8_t dPreLight[MAXDUNX][MAXDUNY];
 /** Holds various information about dungeon tiles, @see DungeonFlag */
 extern DungeonFlag dFlags[MAXDUNX][MAXDUNY];
 /** Contains the player numbers (players array indices) of the map. negative id indicates player moving. */
-extern int8_t dPlayer[MAXDUNX][MAXDUNY];
+extern DVL_API_FOR_TEST int8_t dPlayer[MAXDUNX][MAXDUNY];
 /**
  * Contains the NPC numbers of the map. The NPC number represents a
  * towner number (towners array index) in Tristram and a monster number
  * (monsters array index) in the dungeon.
  * Negative id indicates monsters moving.
  */
-extern int16_t dMonster[MAXDUNX][MAXDUNY];
+extern DVL_API_FOR_TEST int16_t dMonster[MAXDUNX][MAXDUNY];
 /**
  * Contains the dead numbers (deads array indices) and dead direction of
  * the map, encoded as specified by the pseudo-code below.
@@ -152,7 +152,7 @@ extern int8_t dSpecial[MAXDUNX][MAXDUNY];
 extern int themeCount;
 extern THEME_LOC themeLoc[MAXTHEMES];
 
-extern uint32_t DungeonSeeds[NUMLEVELS];
+extern DVL_API_FOR_TEST uint32_t DungeonSeeds[NUMLEVELS];
 extern DVL_API_FOR_TEST std::optional<uint32_t> LevelSeeds[NUMLEVELS];
 
 DVL_ALWAYS_INLINE constexpr bool InDungeonBounds(Point position)

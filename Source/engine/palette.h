@@ -16,6 +16,7 @@
 #endif
 
 #include "levels/gendung_defs.hpp"
+#include "utils/attributes.h"
 
 namespace devilution {
 
@@ -63,7 +64,7 @@ struct Color {
  *
  * However, color cycling / swapping is applied to this palette.
  */
-extern std::array<SDL_Color, 256> logical_palette;
+extern DVL_API_FOR_TEST std::array<SDL_Color, 256> logical_palette;
 
 /**
  * @brief This palette is the actual palette used for rendering.
