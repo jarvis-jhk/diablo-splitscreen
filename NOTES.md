@@ -39,7 +39,9 @@ builds configured with DEVILUTIONX_FAULT_REPORTS=ON (the prerelease workflow), o
 DEVILUTIONX_NO_REPORT=1. The Linux launcher reports crash signals after exit. Windows
 SEH crashes are not reported yet. .github/workflows/fault-reports.yml turns posts into
 fault-report issues and forwards new ones via JARVIS_REPORT_URL; *-test/dev builds are
-skipped. Verified locally: a forced fatal error reached the topic. Guest pickups no
+skipped. Only app_fatal/ErrDlg/asserts report; missing MPQs, read-only folders and mod data errors
+do not (player setup, not a fault). Verified locally: a report reached the topic, and
+after narrowing, a missing-data start posts nothing. Guest pickups no
 longer close pad 1's gold dialog.
 Release path: .github/workflows/fork-prerelease.yml (exact revision, Linux tar.xz +
 Windows zip, SHA256SUMS verified, GitHub prerelease with docs/release-notes/v<version>.md).
