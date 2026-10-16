@@ -1,0 +1,155 @@
+# Builds a fork (pre)release from one exact commit: a Linux x86_64 tarball and a
+# Windows x64 zip, each with a SHA256SUMS file, published as a GitHub prerelease.
+# Release builds carry the anonymous fault reporter (Source/fault_report.cpp).
+# No game data is ever packaged; players supply their own MPQs.
+name: Fork prerelease
+
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Full source commit to release
+        required: true
+      version:
+        description: Fork version without v, e.g. 0.1.0
+        required: true
+      publish:
+        description: Publish the prerelease (false = build and verify only)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fork-prerelease-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: '2'
+  VCPKG_MAX_CONCURRENCY: '2'
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 0
+      - name: Record source and install dependencies
+        run: |
+          git rev-parse HEAD
+          test "$(git rev-parse HEAD)" = "${{ inputs.revision }}"
+          Packaging/nix/debian-host-prep.sh --no-gcc
+          sudo apt-get install -y ninja-build
+          sudo apt-get install -y gcc-14 g++-14
+      - name: Build release
+        env:
+          CC: gcc-14
+          CXX: g++-14
+        run: |
+          cmake -S. -Bbuild -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DDISCORD_INTEGRATION=OFF \
+            -DDEVILUTIONX_SYSTEM_LIBSODIUM=OFF -DDEVILUTIONX_SYSTEM_BZIP2=OFF \
+            -DDEVILUTIONX_FAULT_REPORTS=ON -DDIABLO_SPLITSCREEN_VERSION=${{ inputs.version }}
+          cmake --build build --parallel 2 --target devilutionx
+      - name: Package
+        run: |
+          set -euo pipefail
+          name=diablo-splitscreen-v${{ inputs.version }}-linux-x86_64
+          mkdir -p "$name/mods"
+          cp build/devilutionx build/devilutionx.mpq "$name/"
+          cp build/mods/hf.mpq "$name/mods/" || true
+          cp LICENSE.md docs/LOCAL-COOP.md Packaging/resources/LICENSE.CC-BY.txt Packaging/resources/LICENSE.OFL.txt "$name/"
+          cat > "$name/diablo-splitscreen.sh" <<'SH'
+          #!/bin/sh
+          # Starts the game; reports an anonymous crash (version, platform, signal) afterwards.
+          # DEVILUTIONX_NO_REPORT=1 turns reporting off.
+          BASEDIR="$(dirname "$(realpath "$0")")"
+          "$BASEDIR/devilutionx" "$@"
+          rc=$?
+          if [ "$rc" -gt 128 ] && [ "$DEVILUTIONX_NO_REPORT" != "1" ]; then
+            (curl -fsS --max-time 8 -o /dev/null -d "Diablo Splitscreen VERSION Linux crash signal $((rc - 128))" \
+              https://ntfy.sh/diablo-splitscreen-faults-747d46c7c1c4de46 >/dev/null 2>&1 &)
+          fi
+          exit "$rc"
+          SH
+          sed -i "s/VERSION Linux/${{ inputs.version }} Linux/" "$name/diablo-splitscreen.sh"
+          chmod +x "$name/diablo-splitscreen.sh" "$name/devilutionx"
+          tar -cJf "$name.tar.xz" "$name"
+          sha256sum "$name.tar.xz" > "$name.tar.xz.sha256"
+          ./"$name"/devilutionx --version
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: diablo-splitscreen-v*-linux-x86_64.tar.xz*
+
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision }}
+          fetch-depth: 0
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: lukka/get-cmake@latest
+      - uses: lukka/run-vcpkg@v11.6
+        with:
+          vcpkgGitCommitId: '40f3c709db80acf154ac4b17a1f83c564ebd022e'
+      - name: Record source and configure release
+        run: |
+          git rev-parse HEAD
+          if ((git rev-parse HEAD) -ne '${{ inputs.revision }}') { throw 'wrong source' }
+          Copy-Item Packaging/windows/CMakePresets.json CMakePresets.json
+          cmake --preset ninja-vcpkg-relwithdebinfo -DBUILD_TESTING=OFF -DDEVILUTIONX_FAULT_REPORTS=ON -DDIABLO_SPLITSCREEN_VERSION=${{ inputs.version }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build
+        run: cmake --build --preset ninja-vcpkg-relwithdebinfo --parallel 2 --target devilutionx
+      - name: Package
+        run: |
+          $name = 'diablo-splitscreen-v${{ inputs.version }}-windows-x64'
+          $b = 'build-ninja-vcpkg-relwithdebinfo'
+          New-Item -ItemType Directory -Force "$name/mods" | Out-Null
+          Copy-Item "$b/devilutionx.exe", "$b/devilutionx.mpq" $name
+          Copy-Item "$b/*.dll" $name
+          if (Test-Path "$b/mods/hf.mpq") { Copy-Item "$b/mods/hf.mpq" "$name/mods/" }
+          Copy-Item LICENSE.md, docs/LOCAL-COOP.md, Packaging/resources/LICENSE.CC-BY.txt, Packaging/resources/LICENSE.OFL.txt $name
+          Compress-Archive -Path $name -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -NoNewline -Path "$name.zip.sha256" -Value "$hash  $name.zip`n"
+          Get-ChildItem $name
+      - uses: actions/upload-artifact@v7
+        with:
+          name: windows
+          path: diablo-splitscreen-v*-windows-x64.zip*
+
+  publish:
+    needs: [linux, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Verify checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          for f in *.sha256; do sha256sum -c "$f"; done
+          cat *.sha256 > SHA256SUMS
+          ls -la
+      - name: Publish the prerelease
+        if: inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd dist
+          gh release create "v${{ inputs.version }}" --repo "$GITHUB_REPOSITORY" --prerelease \
+            --target "${{ inputs.revision }}" --title "Diablo Splitscreen v${{ inputs.version }} (test build)" \
+            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.xz *.zip SHA256SUMS
