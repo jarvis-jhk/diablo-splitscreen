@@ -35,7 +35,10 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 
 ## M1 — complete 1–4-player couch game
 
-- [ ] Controller-only lobby, character creation/selection, join/leave and stable pad ownership.
+- [x] Controller-only lobby, character creation/selection, join/leave and stable pad ownership
+  (2026-10-16: in-game join panel picks a saved hero not in play or a new hero of any
+  playable class; Start on a guest pad leaves; seats P2-P4 stay fixed. New heroes get
+  seat names, no typed name; physical pads still Jan's test).
 - [ ] Shared camera for one to four characters; readable personal HUD and simultaneous
   inventory/menu overlays at Deck resolution, with adequate visible gameplay area.
 - [ ] Independent targeting, spells, belt, merchants, dialogue and death/revival; explicit
