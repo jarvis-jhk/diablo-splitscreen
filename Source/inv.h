@@ -84,7 +84,7 @@ enum item_color : uint8_t {
 };
 
 extern DVL_API_FOR_TEST bool invflag;
-extern const Rectangle InvRect[NUM_XY_SLOTS];
+extern DVL_API_FOR_TEST const Rectangle InvRect[NUM_XY_SLOTS];
 
 void InvDrawSlotBack(const Surface &out, Point targetPosition, Size size, item_quality itemQuality);
 /**
@@ -109,6 +109,10 @@ void InitInv();
  * @brief Render the inventory panel to the given buffer.
  */
 void DrawInv(const Surface &out);
+/**
+ * @brief Draws a player's inventory panel at a given position; highlightItem is an inv_item index or -1.
+ */
+void DrawInvPanel(const Surface &out, const Player &player, Point origin, int highlightItem);
 
 void DrawInvBelt(const Surface &out);
 

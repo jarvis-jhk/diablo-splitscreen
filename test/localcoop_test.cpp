@@ -591,4 +591,211 @@ TEST_F(LocalCoopTest, UnpluggingTheGuestPadRemovesOnlyTheGuest)
 	EXPECT_TRUE(WalkPadOne(*padA_));
 }
 
+// ---- Personal inventories ----------------------------------------------
+
+void OpenPadOneInventory(VirtualPad &pad)
+{
+	pad.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 32767);
+	Tick(2);
+	pad.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, 0);
+	Tick(2);
+}
+
+// Panel-relative centre of a guest slot; the guest's belt is a row under its panel.
+Point GuestSlotCenter(int slot)
+{
+	if (slot >= SLOTXY_BELT_FIRST)
+		return { 17 + (slot - SLOTXY_BELT_FIRST) * (INV_SLOT_SIZE_PX + 1) + 14, 352 + 4 + 14 };
+	return InvRect[slot].Center();
+}
+
+int InventoryIndexAt(const Player &player, int slot)
+{
+	if (slot < SLOTXY_INV_FIRST || slot > SLOTXY_INV_LAST)
+		return -1;
+	return std::abs(player.InvGrid[slot - SLOTXY_INV_FIRST]) - 1;
+}
+
+std::optional<int> FindInventoryItem(const Player &player, _item_indexes id)
+{
+	for (int i = 0; i < player._pNumInv; i++) {
+		if (player.InvList[i].IDidx == id)
+			return i;
+	}
+	return std::nullopt;
+}
+
+// Steers the guest's slot cursor with its d-pad, the way a player would.
+template <typename IsTarget>
+bool SteerGuestCursor(VirtualPad &pad, const Player &guest, Point target, IsTarget isTarget)
+{
+	for (int step = 0; step < 30; step++) {
+		const int slot = GuestInventorySlot(guest);
+		if (isTarget(slot))
+			return true;
+		const Displacement d = target - GuestSlotCenter(slot);
+		SDL_GameControllerButton button;
+		if (std::abs(d.deltaX) >= std::abs(d.deltaY))
+			button = d.deltaX > 0 ? SDL_CONTROLLER_BUTTON_DPAD_RIGHT : SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+		else
+			button = d.deltaY > 0 ? SDL_CONTROLLER_BUTTON_DPAD_DOWN : SDL_CONTROLLER_BUTTON_DPAD_UP;
+		Press(pad, button);
+	}
+	return isTarget(GuestInventorySlot(guest));
+}
+
+bool SteerGuestToSlot(VirtualPad &pad, const Player &guest, int slot)
+{
+	return SteerGuestCursor(pad, guest, GuestSlotCenter(slot), [slot](int s) { return s == slot; });
+}
+
+bool SteerGuestToInventoryItem(VirtualPad &pad, const Player &guest, int index)
+{
+	for (int cell = 0; cell < InventoryGridCells; cell++) {
+		if (std::abs(guest.InvGrid[cell]) - 1 == index) {
+			return SteerGuestCursor(pad, guest, GuestSlotCenter(SLOTXY_INV_FIRST + cell),
+			    [&guest, index](int s) { return InventoryIndexAt(guest, s) == index; });
+		}
+	}
+	return false;
+}
+
+TEST_F(LocalCoopTest, BothInventoriesOpenWithIndependentCursorsWhileTheWorldRuns)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	OpenPadOneInventory(*padA_);
+	ASSERT_TRUE(invflag);
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_BACK);
+	ASSERT_TRUE(IsGuestInventoryOpen(guest));
+	EXPECT_TRUE(invflag) << "the guest's Back never reached pad 1";
+	EXPECT_FALSE(gmenu_is_active());
+
+	// The guest's d-pad moves only the guest's slot cursor...
+	const Point mouse = MousePosition;
+	const Point guestTile = guest.position.tile;
+	const int startSlot = GuestInventorySlot(guest);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_DPAD_UP);
+	EXPECT_NE(GuestInventorySlot(guest), startSlot);
+	EXPECT_EQ(MousePosition, mouse);
+	EXPECT_EQ(guest.position.tile, guestTile);
+
+	// ...and pad 1's d-pad and trigger never touch the guest's panel.
+	const int guestSlot = GuestInventorySlot(guest);
+	Press(*padA_, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
+	Tick(5);
+	EXPECT_EQ(GuestInventorySlot(guest), guestSlot);
+	EXPECT_TRUE(invflag);
+	EXPECT_TRUE(IsGuestInventoryOpen(guest));
+	Snapshot("05-both-inventories-open");
+
+	// Nothing is paused: a monster still walks up and hits the guest.
+	Monster &monster = MonsterNextTo(guest.position.tile, MyPlayer->position.tile);
+	monster.hitPoints = monster.maxHitPoints = Fixed26_6::fromInt(500);
+	const Fixed26_6 guestLife = guest._pHitPoints;
+	ASSERT_TRUE(TickUntil([&] { return guest._pHitPoints < guestLife; }, 1500));
+	EXPECT_TRUE(invflag);
+	EXPECT_TRUE(IsGuestInventoryOpen(guest));
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_B);
+	EXPECT_FALSE(IsGuestInventoryOpen(guest));
+	EXPECT_TRUE(invflag);
+}
+
+TEST_F(LocalCoopTest, PadOneWalksWhileTheGuestSortsItsInventory)
+{
+	JoinGuest();
+	EnterDungeon();
+	Player &guest = Guest();
+	Press(*padB_, SDL_CONTROLLER_BUTTON_BACK);
+	ASSERT_TRUE(IsGuestInventoryOpen(guest));
+
+	// The guest's stick steers its cursor (with key-repeat), not its hero.
+	const Point guestTile = guest.position.tile;
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
+	Tick(20);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	Tick(2);
+	EXPECT_GE(GuestInventorySlot(guest), SLOTXY_INV_FIRST + 3) << "held stick repeats";
+	EXPECT_EQ(guest.position.tile, guestTile);
+
+	EXPECT_TRUE(WalkPadOne(*padA_));
+	EXPECT_FALSE(invflag);
+	EXPECT_TRUE(IsGuestInventoryOpen(guest));
+}
+
+TEST_F(LocalCoopTest, GuestWearsUsesBeltsAndDropsItsOwnItems)
+{
+	JoinGuest(); // town: nothing attacks while it sorts
+	Player &guest = Guest();
+	ASSERT_EQ(guest._pClass, HeroClass::Warrior);
+	const int mine = Possessions(*MyPlayer);
+	const _item_indexes myWeapon = MyPlayer->InvBody[INVLOC_HAND_LEFT].IDidx;
+	Press(*padB_, SDL_CONTROLLER_BUTTON_BACK);
+	ASSERT_TRUE(IsGuestInventoryOpen(guest));
+
+	// Wear the club from the pack: it swaps with the sword in the weapon hand.
+	const std::optional<int> club = FindInventoryItem(guest, IDI_WARRCLUB);
+	ASSERT_TRUE(club.has_value());
+	ASSERT_EQ(guest.InvBody[INVLOC_HAND_LEFT].IDidx, IDI_WARRIOR);
+	ASSERT_TRUE(SteerGuestToInventoryItem(*padB_, guest, *club));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	EXPECT_EQ(guest.InvBody[INVLOC_HAND_LEFT].IDidx, IDI_WARRCLUB);
+	EXPECT_EQ(guest.InvBody[INVLOC_HAND_RIGHT].IDidx, IDI_WARRSHLD);
+	EXPECT_TRUE(FindInventoryItem(guest, IDI_WARRIOR).has_value());
+	EXPECT_FALSE(FindInventoryItem(guest, IDI_WARRCLUB).has_value());
+	Snapshot("06-guest-wears-club");
+
+	// Take the club off again from the equipment slot.
+	ASSERT_TRUE(SteerGuestToSlot(*padB_, guest, SLOTXY_HAND_LEFT));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	EXPECT_TRUE(guest.InvBody[INVLOC_HAND_LEFT].isEmpty());
+	EXPECT_TRUE(FindInventoryItem(guest, IDI_WARRCLUB).has_value());
+
+	// Drink a belt potion.
+	ASSERT_FALSE(guest.SpdList[0].isEmpty());
+	guest._pHPBase -= guest._pHitPoints - Fixed26_6::fromInt(5);
+	guest._pHitPoints = Fixed26_6::fromInt(5);
+	const Fixed26_6 myLife = MyPlayer->_pHitPoints;
+	ASSERT_TRUE(SteerGuestToSlot(*padB_, guest, SLOTXY_BELT_FIRST));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	EXPECT_GT(guest._pHitPoints, Fixed26_6::fromInt(5));
+	EXPECT_TRUE(guest.SpdList[0].isEmpty());
+	EXPECT_EQ(MyPlayer->_pHitPoints, myLife);
+
+	// Y moves the other potion off the belt into the pack, and back.
+	ASSERT_FALSE(guest.SpdList[1].isEmpty());
+	ASSERT_TRUE(SteerGuestToSlot(*padB_, guest, SLOTXY_BELT_FIRST + 1));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_Y);
+	EXPECT_TRUE(guest.SpdList[1].isEmpty());
+	const std::optional<int> potion = FindInventoryItem(guest, IDI_HEAL);
+	ASSERT_TRUE(potion.has_value());
+	ASSERT_TRUE(SteerGuestToInventoryItem(*padB_, guest, *potion));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_Y);
+	EXPECT_FALSE(FindInventoryItem(guest, IDI_HEAL).has_value());
+	EXPECT_FALSE(guest.SpdList[0].isEmpty());
+
+	// X drops the sword on the ground; the guest can pick it up again.
+	const std::optional<int> sword = FindInventoryItem(guest, IDI_WARRIOR);
+	ASSERT_TRUE(sword.has_value());
+	const int carried = Possessions(guest);
+	ASSERT_TRUE(SteerGuestToInventoryItem(*padB_, guest, *sword));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_X);
+	Tick(2);
+	EXPECT_EQ(Possessions(guest), carried - 1);
+	EXPECT_FALSE(FindInventoryItem(guest, IDI_WARRIOR).has_value());
+	Press(*padB_, SDL_CONTROLLER_BUTTON_B);
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, true);
+	EXPECT_TRUE(TickUntil([&] { return Possessions(guest) == carried; }, 200)); // auto-equipped into the free hand
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, false);
+	Tick();
+
+	// Pad 1's hero was never touched.
+	EXPECT_EQ(Possessions(*MyPlayer), mine);
+	EXPECT_EQ(MyPlayer->InvBody[INVLOC_HAND_LEFT].IDidx, myWeapon);
+	EXPECT_FALSE(invflag);
+}
+
 } // namespace

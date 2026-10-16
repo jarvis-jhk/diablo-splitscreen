@@ -22,11 +22,13 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 - [x] Implement the smallest viable TWO-player shared-screen proof (docs/LOCAL-COOP.md):
   guest joins with Start, own hero, walk/attack/cast/damage/XP/pickup, pad 1 unchanged.
   Frame time/memory not yet measured.
-- [ ] Prove exclusive controller routing and personal UI/player state: one inventory open
-  while the other moves/fights/casts (done, virtual pads); both inventories open with
-  independent cursors (next: Personal inventories).
+- [x] Prove exclusive controller routing and personal UI/player state: one inventory open
+  while the other moves/fights/casts; both inventories open with independent cursors
+  (personal guest inventories, virtual pads; physical pads still Jan's test).
 - [ ] Personal menus, equipment, spell selection and merchants never globally pause or
   capture another controller; camera remains useful while a stationary player sorts items.
+  Inventory/equipment/belt done for guests; spell selection panel, character sheet and
+  merchants still to do.
 - [x] Evaluate in-process ownership first: selected (guest commands parsed as the guest,
   IsLocalPlayer at authority sites); isolated clients stay an unused fallback.
 - [ ] Wire real crash and launch failures through anonymous fault relay into GitHub issues.

@@ -1,6 +1,7 @@
 #include "localcoop.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -15,8 +16,10 @@
 #include "controls/devices/game_controller.h"
 #endif
 #include "controls/devices/joystick.h"
+#include "control/control.hpp"
 #include "cursor.h"
 #include "engine/point.hpp"
+#include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/surface.hpp"
@@ -57,6 +60,12 @@ struct Guest {
 	SpellID spell = SpellID::Invalid;
 	bool attackHeld = false;
 	bool walking = false;
+	// The guest's own inventory panel: its slot cursor (inv_xy_slot) and the
+	// stick direction it is being steered with, for key-repeat.
+	bool inventoryOpen = false;
+	int slot = SLOTXY_INV_FIRST;
+	AxisDirection navDirection { AxisDirectionX_NONE, AxisDirectionY_NONE };
+	int navTicks = 0;
 };
 
 std::vector<Guest> Guests;
@@ -235,7 +244,7 @@ std::optional<Point> NearestItem(const Player &player)
 // Spells a guest can aim with its own facing or nearest target. Cursor-driven
 // spells (identify, repair, telekinesis, ...) need a personal cursor, and town
 // portal/golem still send as pad 1; both stay pad 1's until guests get panels.
-bool IsGuestSpell(const Player &player, SpellID spell)
+bool IsAimableByGuest(SpellID spell)
 {
 	switch (spell) {
 	case SpellID::Identify:
@@ -253,7 +262,12 @@ bool IsGuestSpell(const Player &player, SpellID spell)
 	default:
 		break;
 	}
-	if (!IsValidSpell(spell))
+	return IsValidSpell(spell);
+}
+
+bool IsGuestSpell(const Player &player, SpellID spell)
+{
+	if (!IsAimableByGuest(spell))
 		return false;
 	return (player._pMemSpells & GetSpellBitmask(spell)) != 0 && player.GetSpellLevel(spell) > 0;
 }
@@ -307,19 +321,16 @@ void GuestPrimaryAction(Guest &guest)
 		SendLoc(guest.playerId, player.UsesRangedWeapon() ? CMD_RATTACKXY : CMD_SATTACKXY, AimPoint(player, player.UsesRangedWeapon() ? 5 : 1));
 }
 
-void GuestCastSpell(Guest &guest)
+// Casts a spell (or reads a scroll: type Scroll, from its inv_item slot) at
+// the nearest monster or straight ahead.
+void GuestCast(Guest &guest, SpellID spell, SpellType type, int spellFrom)
 {
 	Player &player = Players[guest.playerId];
-	const SpellID spell = guest.spell;
-	if (!IsGuestSpell(player, spell)) {
-		player.Say(HeroSpeech::IDontHaveASpellReady);
-		return;
-	}
 	if (leveltype == DTYPE_TOWN && !GetSpellData(spell).isAllowedInTown()) {
 		player.Say(HeroSpeech::ICantCastThatHere);
 		return;
 	}
-	const SpellCheckResult check = CheckSpell(player, spell, SpellType::Spell, false);
+	const SpellCheckResult check = CheckSpell(player, spell, type, false);
 	if (check == SpellCheckResult::Fail_NoMana) {
 		player.Say(HeroSpeech::NotEnoughMana);
 		return;
@@ -328,7 +339,8 @@ void GuestCastSpell(Guest &guest)
 		return;
 
 	const auto spellParam = static_cast<uint16_t>(static_cast<int8_t>(spell));
-	const auto typeParam = static_cast<uint16_t>(static_cast<uint8_t>(SpellType::Spell));
+	const auto typeParam = static_cast<uint16_t>(static_cast<uint8_t>(type));
+	const auto fromParam = static_cast<uint16_t>(spellFrom);
 	const std::optional<size_t> monster = leveltype != DTYPE_TOWN ? NearestMonster(player, 10, true) : std::nullopt;
 	if (IsWallSpell(spell)) {
 		const Point target = monster ? static_cast<Point>(Monsters[*monster].position.tile) : AimPoint(player, 3);
@@ -339,7 +351,7 @@ void GuestCastSpell(Guest &guest)
 		cmd.wParam1 = Swap16LE(spellParam);
 		cmd.wParam2 = Swap16LE(typeParam);
 		cmd.wParam3 = Swap16LE(static_cast<uint16_t>(GetDirection(player.position.tile, target)));
-		cmd.wParam4 = 0;
+		cmd.wParam4 = Swap16LE(fromParam);
 		Send(guest.playerId, cmd);
 	} else if (monster) {
 		TCmdParam4 cmd;
@@ -347,7 +359,7 @@ void GuestCastSpell(Guest &guest)
 		cmd.wParam1 = Swap16LE(static_cast<uint16_t>(*monster));
 		cmd.wParam2 = Swap16LE(spellParam);
 		cmd.wParam3 = Swap16LE(typeParam);
-		cmd.wParam4 = 0;
+		cmd.wParam4 = Swap16LE(fromParam);
 		Send(guest.playerId, cmd);
 	} else {
 		const Point target = AimPoint(player, 4);
@@ -357,9 +369,19 @@ void GuestCastSpell(Guest &guest)
 		cmd.y = static_cast<uint8_t>(target.y);
 		cmd.wParam1 = Swap16LE(spellParam);
 		cmd.wParam2 = Swap16LE(typeParam);
-		cmd.wParam3 = 0;
+		cmd.wParam3 = Swap16LE(fromParam);
 		Send(guest.playerId, cmd);
 	}
+}
+
+void GuestCastSpell(Guest &guest)
+{
+	Player &player = Players[guest.playerId];
+	if (!IsGuestSpell(player, guest.spell)) {
+		player.Say(HeroSpeech::IDontHaveASpellReady);
+		return;
+	}
+	GuestCast(guest, guest.spell, SpellType::Spell, 0);
 }
 
 void GuestDrinkPotion(Guest &guest)
@@ -493,6 +515,461 @@ void ReviveGuest(Player &player)
 	player._pHPBase = player._pMaxHPBase;
 	player._pmode = PM_STAND;
 	CalcPlrInv(player, false);
+}
+
+// ---- The guest's personal inventory panel --------------------------------
+//
+// Each guest has its own panel, its own slot cursor and its own buttons; none
+// of it touches pad 1's globals (invflag, pcurs, pcursinvitem, HoldItem), so
+// any number of panels can be open at once while the world keeps running.
+// Items are moved directly on the guest's Player, as a remote client would do
+// to its own hero; nothing here sends a network message as MyPlayer.
+
+constexpr int BeltSlotCount = SLOTXY_BELT_LAST - SLOTXY_BELT_FIRST + 1;
+constexpr int GuestBeltTop = SidePanelSize.height + 4;
+constexpr int GuestInfoTop = GuestBeltTop + INV_SLOT_SIZE_PX + 6;
+constexpr int GuestInfoLineHeight = 16;
+constexpr int GuestPanelHeight = GuestInfoTop + 2 * GuestInfoLineHeight + 4;
+constexpr int NavRepeatDelay = 6;
+constexpr int NavRepeatInterval = 3;
+
+// Panel-relative rectangle of a slot; the belt is a row under the panel.
+Rectangle GuestSlotRect(int slot)
+{
+	if (slot >= SLOTXY_BELT_FIRST) {
+		const int i = slot - SLOTXY_BELT_FIRST;
+		return { { 17 + i * (INV_SLOT_SIZE_PX + 1), GuestBeltTop }, { INV_SLOT_SIZE_PX + 1, INV_SLOT_SIZE_PX + 1 } };
+	}
+	return InvRect[slot];
+}
+
+// The guest's item under a slot as an inv_item index, or -1 when empty.
+int GuestItemAt(const Player &player, int slot)
+{
+	if (slot <= SLOTXY_EQUIPPED_LAST) {
+		if (!player.InvBody[slot].isEmpty())
+			return slot;
+		// A two-handed weapon also fills the other hand.
+		if (slot == SLOTXY_HAND_RIGHT && player.GetItemLocation(player.InvBody[INVLOC_HAND_LEFT]) == ILOC_TWOHAND)
+			return INVITEM_HAND_LEFT;
+		return -1;
+	}
+	if (slot <= SLOTXY_INV_LAST) {
+		const int8_t cell = player.InvGrid[slot - SLOTXY_INV_FIRST];
+		return cell == 0 ? -1 : INVITEM_INV_FIRST + std::abs(cell) - 1;
+	}
+	const int i = slot - SLOTXY_BELT_FIRST;
+	return player.SpdList[i].isEmpty() ? -1 : INVITEM_BELT_FIRST + i;
+}
+
+const Item *GuestItem(const Player &player, int invItem)
+{
+	if (invItem < 0)
+		return nullptr;
+	if (invItem < INVITEM_INV_FIRST)
+		return &player.InvBody[invItem];
+	if (invItem <= INVITEM_INV_LAST)
+		return &player.InvList[invItem - INVITEM_INV_FIRST];
+	return &player.SpdList[invItem - INVITEM_BELT_FIRST];
+}
+
+// Steps the slot cursor to the nearest slot in a direction; a multi-cell item
+// counts as one stop, so a stick push always lands on something new.
+void MoveGuestSlot(Guest &guest, AxisDirection dir)
+{
+	const Player &player = Players[guest.playerId];
+	const int dx = dir.x == AxisDirectionX_LEFT ? -1 : (dir.x == AxisDirectionX_RIGHT ? 1 : 0);
+	const int dy = dir.y == AxisDirectionY_UP ? -1 : (dir.y == AxisDirectionY_DOWN ? 1 : 0);
+	if (dx == 0 && dy == 0)
+		return;
+	const Point from = GuestSlotRect(guest.slot).Center();
+	const int fromItem = GuestItemAt(player, guest.slot);
+	int best = -1;
+	int bestScore = 0;
+	for (int slot = 0; slot < NUM_XY_SLOTS; slot++) {
+		if (slot == guest.slot)
+			continue;
+		const int item = GuestItemAt(player, slot);
+		if (item != -1 && item == fromItem)
+			continue;
+		const Displacement delta = GuestSlotRect(slot).Center() - from;
+		const int along = delta.deltaX * dx + delta.deltaY * dy;
+		if (along <= 0)
+			continue;
+		const int across = std::abs(delta.deltaX * dy - delta.deltaY * dx);
+		if (dx != 0 && dy != 0 ? across > along : across > 2 * along)
+			continue;
+		const int score = along + 2 * across;
+		if (best == -1 || score < bestScore) {
+			best = slot;
+			bestScore = score;
+		}
+	}
+	if (best != -1)
+		guest.slot = best;
+}
+
+struct InventorySnapshot {
+	std::array<Item, NUM_INVLOC> body;
+	std::array<Item, InventoryGridCells> list;
+	std::array<int8_t, InventoryGridCells> grid;
+	int numInv;
+
+	explicit InventorySnapshot(const Player &player)
+	    : numInv(player._pNumInv)
+	{
+		std::copy(std::begin(player.InvBody), std::end(player.InvBody), body.begin());
+		std::copy(std::begin(player.InvList), std::end(player.InvList), list.begin());
+		std::copy(std::begin(player.InvGrid), std::end(player.InvGrid), grid.begin());
+	}
+
+	void Restore(Player &player) const
+	{
+		std::copy(body.begin(), body.end(), std::begin(player.InvBody));
+		std::copy(list.begin(), list.end(), std::begin(player.InvList));
+		std::copy(grid.begin(), grid.end(), std::begin(player.InvGrid));
+		player._pNumInv = numInv;
+	}
+};
+
+// Which worn items must come off before this item can go on.
+std::vector<inv_body_loc> SlotsToFree(const Player &player, const Item &item)
+{
+	switch (player.GetItemLocation(item)) {
+	case ILOC_HELM:
+		return { INVLOC_HEAD };
+	case ILOC_ARMOR:
+		return { INVLOC_CHEST };
+	case ILOC_AMULET:
+		return { INVLOC_AMULET };
+	case ILOC_RING:
+		return { INVLOC_RING_LEFT };
+	case ILOC_TWOHAND:
+		return { INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT };
+	case ILOC_ONEHAND: {
+		const Item &left = player.InvBody[INVLOC_HAND_LEFT];
+		if (player.GetItemLocation(left) == ILOC_TWOHAND)
+			return { INVLOC_HAND_LEFT };
+		// Replace the hand that holds the same kind of thing: weapon for weapon, shield for shield.
+		for (const inv_body_loc hand : { INVLOC_HAND_LEFT, INVLOC_HAND_RIGHT }) {
+			const Item &held = player.InvBody[hand];
+			if (!held.isEmpty() && held.isShield() == item.isShield())
+				return { hand };
+		}
+		return { item.isShield() ? INVLOC_HAND_RIGHT : INVLOC_HAND_LEFT };
+	}
+	default:
+		return {};
+	}
+}
+
+void GuestInventoryChanged(Player &player)
+{
+	for (Item &item : InventoryPlayerItemsRange { player })
+		item.updateRequiredStatsCacheForPlayer(player);
+	CalcPlrInv(player, true);
+	player.CalcScrolls();
+}
+
+// Wears an inventory item, swapping out whatever it replaces; all or nothing.
+void GuestEquip(Player &player, int invIndex)
+{
+	const InventorySnapshot before(player);
+	Item item = player.InvList[invIndex];
+	item.updateRequiredStatsCacheForPlayer(player);
+	if (!item._iStatFlag) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		return;
+	}
+	if (player._pmode > PM_WALK_SIDEWAYS)
+		return; // mid-attack or mid-spell; try again in a moment
+	player.RemoveInvItem(invIndex, false);
+	if (!AutoEquip(player, item, true, false)) {
+		for (const inv_body_loc location : SlotsToFree(player, item)) {
+			if (player.InvBody[location].isEmpty())
+				continue;
+			const Item worn = player.InvBody[location];
+			RemoveEquipment(player, location, false);
+			if (!AutoPlaceItemInInventory(player, worn)) {
+				before.Restore(player);
+				player.Say(HeroSpeech::IHaveNoRoom);
+				return;
+			}
+		}
+		if (!AutoEquip(player, item, true, false)) {
+			before.Restore(player);
+			player.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+	}
+	GuestInventoryChanged(player);
+}
+
+void GuestUnequip(Player &player, int bodyLocation)
+{
+	const auto location = static_cast<inv_body_loc>(bodyLocation);
+	const Item worn = player.InvBody[location];
+	RemoveEquipment(player, location, false);
+	if (!AutoPlaceItemInInventory(player, worn)) {
+		player.InvBody[location] = worn;
+		player.Say(HeroSpeech::IHaveNoRoom);
+		return;
+	}
+	GuestInventoryChanged(player);
+}
+
+void RemoveGuestItem(Player &player, int invItem)
+{
+	if (invItem >= INVITEM_BELT_FIRST)
+		player.RemoveSpdBarItem(invItem - INVITEM_BELT_FIRST);
+	else if (invItem >= INVITEM_INV_FIRST)
+		player.RemoveInvItem(invItem - INVITEM_INV_FIRST);
+	else
+		RemoveEquipment(player, static_cast<inv_body_loc>(invItem), false);
+}
+
+// Uses a carried item the way pad 1's right-click would, for the items that
+// need no cursor: potions, elixirs, books and the scrolls a guest can aim.
+void GuestUseItem(Guest &guest, int invItem)
+{
+	Player &player = Players[guest.playerId];
+	const Item &item = *GuestItem(player, invItem);
+	if (!item.isUsable())
+		return;
+	if (!player.CanUseItem(item)) {
+		player.Say(HeroSpeech::ICantUseThisYet);
+		return;
+	}
+	const item_misc_id misc = item._iMiscId;
+	const SpellID spell = item._iSpell;
+	switch (misc) {
+	case IMISC_HEAL:
+	case IMISC_FULLHEAL:
+	case IMISC_MANA:
+	case IMISC_FULLMANA:
+	case IMISC_REJUV:
+	case IMISC_FULLREJUV:
+	case IMISC_ELIXSTR:
+	case IMISC_ELIXMAG:
+	case IMISC_ELIXDEX:
+	case IMISC_ELIXVIT:
+	case IMISC_SPECELIX:
+		UseItem(player, misc, spell, invItem);
+		RemoveGuestItem(player, invItem);
+		GuestInventoryChanged(player);
+		return;
+	case IMISC_BOOK: {
+		// UseItem would announce the new spell level as MyPlayer.
+		const int8_t id = static_cast<int8_t>(spell);
+		if (player._pSplLvl[id] < MaxSpellLevel)
+			player._pSplLvl[id]++;
+		player._pMemSpells |= GetSpellBitmask(spell);
+		if (HasNoneOf(player._pIFlags, ItemSpecialEffect::NoMana)) {
+			const Fixed26_6 cost = Fixed26_6::fromInt(GetSpellData(spell).sManaCost);
+			player._pMana = std::min(player._pMana + cost, player._pMaxMana);
+			player._pManaBase = std::min(player._pManaBase + cost, player._pMaxManaBase);
+		}
+		RemoveGuestItem(player, invItem);
+		GuestInventoryChanged(player);
+		if (guest.spell == SpellID::Invalid)
+			guest.spell = NextGuestSpell(player, SpellID::Invalid);
+		return;
+	}
+	case IMISC_SCROLL:
+	case IMISC_SCROLLT:
+		if (!IsAimableByGuest(spell)) {
+			player.Say(HeroSpeech::ICantDoThat);
+			return;
+		}
+		// The scroll is used up when the spell actually goes off.
+		GuestCast(guest, spell, SpellType::Scroll, invItem);
+		return;
+	default:
+		player.Say(HeroSpeech::ICantDoThat);
+		return;
+	}
+}
+
+// A: wear, take off or use the item under the guest's slot cursor.
+void GuestInventoryPrimary(Guest &guest)
+{
+	Player &player = Players[guest.playerId];
+	const int invItem = GuestItemAt(player, guest.slot);
+	if (invItem < 0)
+		return;
+	if (invItem < INVITEM_INV_FIRST) {
+		GuestUnequip(player, invItem);
+		return;
+	}
+	const Item &item = *GuestItem(player, invItem);
+	if (invItem <= INVITEM_INV_LAST && item.isEquipment()) {
+		GuestEquip(player, invItem - INVITEM_INV_FIRST);
+		return;
+	}
+	GuestUseItem(guest, invItem);
+}
+
+// Y: move between the inventory and the belt.
+void GuestInventoryBelt(Guest &guest)
+{
+	Player &player = Players[guest.playerId];
+	const int invItem = GuestItemAt(player, guest.slot);
+	if (invItem < INVITEM_INV_FIRST)
+		return;
+	const Item item = *GuestItem(player, invItem);
+	if (invItem >= INVITEM_BELT_FIRST) {
+		if (!AutoPlaceItemInInventory(player, item)) {
+			player.Say(HeroSpeech::IHaveNoRoom);
+			return;
+		}
+		player.RemoveSpdBarItem(invItem - INVITEM_BELT_FIRST);
+	} else {
+		if (!AutoPlaceItemInBelt(player, item, true, false)) {
+			player.Say(CanBePlacedOnBelt(player, item) ? HeroSpeech::IHaveNoRoom : HeroSpeech::ICantDoThat);
+			return;
+		}
+		player.RemoveInvItem(invItem - INVITEM_INV_FIRST);
+	}
+	GuestInventoryChanged(player);
+}
+
+// X: drop the item on the ground in front of the guest, through the same
+// command a remote player's drop arrives as.
+void GuestInventoryDrop(Guest &guest)
+{
+	Player &player = Players[guest.playerId];
+	const int invItem = GuestItemAt(player, guest.slot);
+	if (invItem < 0)
+		return;
+	const Item &item = *GuestItem(player, invItem);
+	if (item.IDidx == IDI_EAR)
+		return; // ears come from PvP, which an offline couch game has none of
+	const std::optional<Point> tile = FindAdjacentPositionForItem(player.position.tile, player._pdir);
+	if (!tile) {
+		player.Say(HeroSpeech::WhereWouldIPutThis);
+		return;
+	}
+	TCmdPItem cmd {};
+	cmd.bCmd = CMD_PUTITEM;
+	cmd.x = static_cast<uint8_t>(tile->x);
+	cmd.y = static_cast<uint8_t>(tile->y);
+	cmd.def.wIndx = static_cast<_item_indexes>(Swap16LE(item.IDidx));
+	cmd.def.wCI = Swap16LE(item._iCreateInfo);
+	cmd.def.dwSeed = Swap32LE(item._iSeed);
+	PrepareItemForNetwork(item, cmd.item);
+	Send(guest.playerId, cmd);
+	RemoveGuestItem(player, invItem);
+	GuestInventoryChanged(player);
+}
+
+void StopGuest(Guest &guest)
+{
+	Player &player = Players[guest.playerId];
+	guest.attackHeld = false;
+	if (guest.walking) {
+		guest.walking = false;
+		if (player.walkpath[0] != WALK_NONE && player.destAction == ACTION_NONE)
+			SendLoc(guest.playerId, CMD_WALKXY, player.position.future);
+	}
+}
+
+void SetGuestInventoryOpen(Guest &guest, bool open)
+{
+	if (guest.inventoryOpen == open)
+		return;
+	guest.inventoryOpen = open;
+	guest.navDirection = { AxisDirectionX_NONE, AxisDirectionY_NONE };
+	guest.navTicks = 0;
+	if (open)
+		StopGuest(guest);
+}
+
+// Stick or d-pad: one step at once, then key-repeat while held.
+void UpdateGuestInventoryCursor(Guest &guest)
+{
+	const AxisDirection dir = GuestDirection(guest);
+	if (dir.x == AxisDirectionX_NONE && dir.y == AxisDirectionY_NONE) {
+		guest.navDirection = dir;
+		guest.navTicks = 0;
+		return;
+	}
+	if (dir.x != guest.navDirection.x || dir.y != guest.navDirection.y) {
+		guest.navDirection = dir;
+		guest.navTicks = 0;
+		MoveGuestSlot(guest, dir);
+		return;
+	}
+	guest.navTicks++;
+	if (guest.navTicks >= NavRepeatDelay && (guest.navTicks - NavRepeatDelay) % NavRepeatInterval == 0)
+		MoveGuestSlot(guest, dir);
+}
+
+// Guests' panels sit side by side from the left edge, by seat, so a panel
+// never moves when another guest opens or closes theirs. Pad 1's own panel
+// stays on the right.
+Point GuestPanelOrigin(const Surface &out, size_t seat)
+{
+	const Point left = GetLeftPanel().position;
+	const int x = std::clamp(left.x + static_cast<int>(seat) * SidePanelSize.width, 0, std::max(0, out.w() - SidePanelSize.width));
+	const int y = std::clamp(left.y, 0, std::max(0, out.h() - GuestPanelHeight));
+	return { x, y };
+}
+
+void DrawSlotFrame(const Surface &out, Rectangle rect, uint8_t color)
+{
+	for (int i = 0; i < 2; i++) {
+		DrawHorizontalLine(out, rect.position + Displacement { 0, i }, rect.size.width, color);
+		DrawHorizontalLine(out, rect.position + Displacement { 0, rect.size.height - 1 - i }, rect.size.width, color);
+		DrawVerticalLine(out, rect.position + Displacement { i, 0 }, rect.size.height, color);
+		DrawVerticalLine(out, rect.position + Displacement { rect.size.width - 1 - i, 0 }, rect.size.height, color);
+	}
+}
+
+UiFlags ItemNameColor(const Item &item)
+{
+	switch (item._iMagical) {
+	case ITEM_QUALITY_MAGIC:
+		return UiFlags::ColorBlue;
+	case ITEM_QUALITY_UNIQUE:
+		return UiFlags::ColorWhitegold;
+	default:
+		return UiFlags::ColorWhite;
+	}
+}
+
+void DrawGuestInventory(const Surface &out, const Guest &guest, size_t seat)
+{
+	const Player &player = Players[guest.playerId];
+	const Point origin = GuestPanelOrigin(out, seat);
+	const int highlight = GuestItemAt(player, guest.slot);
+	DrawInvPanel(out, player, origin, highlight < INVITEM_BELT_FIRST ? highlight : -1);
+
+	DrawHalfTransparentRectTo(out, origin.x, origin.y + SidePanelSize.height, SidePanelSize.width, GuestPanelHeight - SidePanelSize.height);
+	for (int i = 0; i < BeltSlotCount; i++) {
+		const Rectangle rect = GuestSlotRect(SLOTXY_BELT_FIRST + i);
+		const Point position = origin + Displacement { rect.position.x, rect.position.y + INV_SLOT_SIZE_PX };
+		const Item &item = player.SpdList[i];
+		if (item.isEmpty())
+			continue;
+		InvDrawSlotBack(out, position, InventorySlotSizeInPixels, item._iMagical);
+		const ClxSprite sprite = GetInvItemSprite(item._iCurs + CURSOR_FIRSTITEM);
+		if (highlight == INVITEM_BELT_FIRST + i)
+			ClxDrawOutline(out, GetOutlineColor(item, true), position, sprite);
+		DrawItem(item, out, position, sprite);
+	}
+
+	const Rectangle slotRect = GuestSlotRect(guest.slot);
+	DrawSlotFrame(out, { origin + Displacement { slotRect.position.x, slotRect.position.y }, slotRect.size }, PAL16_YELLOW + 2);
+
+	const Item *item = GuestItem(player, highlight);
+	const std::string title = item != nullptr && !item->isEmpty()
+	    ? FormatRuntime("P{:d} {:s}: {:s}", seat + 2, player._pName, std::string_view(item->getName()))
+	    : FormatRuntime("P{:d} {:s}", seat + 2, player._pName);
+	const Point info = origin + Displacement { 0, GuestInfoTop };
+	DrawString(out, title, { info, { SidePanelSize.width, GuestInfoLineHeight } },
+	    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | (item != nullptr && !item->isEmpty() ? ItemNameColor(*item) : UiFlags::ColorWhite) });
+	DrawString(out, _("A use/wear  X drop  Y belt  B close"), { info + Displacement { 0, GuestInfoLineHeight }, { SidePanelSize.width, GuestInfoLineHeight } },
+	    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | UiFlags::ColorWhite });
 }
 
 } // namespace
@@ -652,9 +1129,32 @@ bool HandleLocalCoopEvent(const SDL_Event &event)
 	Player &player = Players[guest->playerId];
 	for (const ControllerButtonEvent ctrlEvent : ToControllerButtonEvents(event)) {
 		if (ctrlEvent.button == ControllerButton_BUTTON_A)
-			guest->attackHeld = !ctrlEvent.up;
+			guest->attackHeld = !ctrlEvent.up && !guest->inventoryOpen;
 		if (ctrlEvent.up || !player.plractive || !player.isOnActiveLevel() || player.hasNoLife() || player._pmode == PM_DEATH)
 			continue;
+		if (ctrlEvent.button == ControllerButton_BUTTON_BACK) {
+			SetGuestInventoryOpen(*guest, !guest->inventoryOpen);
+			continue;
+		}
+		if (guest->inventoryOpen) {
+			switch (ctrlEvent.button) {
+			case ControllerButton_BUTTON_A:
+				GuestInventoryPrimary(*guest);
+				break;
+			case ControllerButton_BUTTON_X:
+				GuestInventoryDrop(*guest);
+				break;
+			case ControllerButton_BUTTON_Y:
+				GuestInventoryBelt(*guest);
+				break;
+			case ControllerButton_BUTTON_B:
+				SetGuestInventoryOpen(*guest, false);
+				break;
+			default:
+				break;
+			}
+			continue;
+		}
 		switch (ctrlEvent.button) {
 		case ControllerButton_BUTTON_A:
 			GuestPrimaryAction(*guest);
@@ -691,7 +1191,15 @@ void UpdateLocalGuests()
 
 	for (Guest &guest : Guests) {
 		Player &player = Players[guest.playerId];
-		if (!player.plractive || !player.isOnActiveLevel() || player.hasNoLife() || player._pmode == PM_DEATH || player._pInvincible)
+		if (!player.plractive || !player.isOnActiveLevel() || player.hasNoLife() || player._pmode == PM_DEATH) {
+			SetGuestInventoryOpen(guest, false);
+			continue;
+		}
+		if (guest.inventoryOpen) {
+			UpdateGuestInventoryCursor(guest);
+			continue;
+		}
+		if (player._pInvincible)
 			continue;
 		const AxisDirection dir = GuestDirection(guest);
 		if (dir.x != AxisDirectionX_NONE || dir.y != AxisDirectionY_NONE) {
@@ -741,6 +1249,34 @@ void PlaceLocalGuestsAfterLevelLoad(bool keepPositions)
 		ChangeLightXY(player.lightId, player.position.tile);
 		ChangeVisionXY(player.getId(), player.position.tile);
 		StartStand(player, player._pdir);
+	}
+}
+
+bool IsGuestInventoryOpen(const Player &player)
+{
+	for (const Guest &guest : Guests) {
+		if (&Players[guest.playerId] == &player)
+			return guest.inventoryOpen;
+	}
+	return false;
+}
+
+int GuestInventorySlot(const Player &player)
+{
+	for (const Guest &guest : Guests) {
+		if (&Players[guest.playerId] == &player)
+			return guest.slot;
+	}
+	return -1;
+}
+
+void DrawLocalGuestInventories(const Surface &out)
+{
+	for (size_t seat = 0; seat < Guests.size(); seat++) {
+		const Guest &guest = Guests[seat];
+		const Player &player = Players[guest.playerId];
+		if (guest.inventoryOpen && player.plractive && player.isOnActiveLevel())
+			DrawGuestInventory(out, guest, seat);
 	}
 }
 
