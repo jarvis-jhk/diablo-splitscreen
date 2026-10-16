@@ -1,6 +1,12 @@
 # Current state — 2026-10-16
 
-**Two-player proof implemented** (branch `localcoop-two-player`, see docs/LOCAL-COOP.md).
+**Two-player proof merged** (PR2, merge 912ba8252; see docs/LOCAL-COOP.md). Native gate
+on source e288ca847: run 38893868323, Linux 632 / Windows 606 cases, 0 failures, the 2
+known pagination skips, all 11 LocalCoopTest cases on both, logged HEAD and artifact
+digests verified (JARVIS data/diablo/localcoop-native/). The merge differs from the gated
+commit only in the prerelease workflow, ROADMAP and release notes. Windows needed
+DVL_API_FOR_TEST on every global the test touches (MSVC links tests against the DLL),
+including ones reached through inline methods (MonstersData, setlvlnum, LevelMonsterTypes).
 In an offline multiplayer game the first pad pressed is pad 1; Start on another pad
 joins a guest hero (next saved hero, read only, else a fresh level-1 hero) beside pad 1.
 `Source/localcoop.{hpp,cpp}`: the guest's device is claimed (controller.cpp: any-device
@@ -45,7 +51,9 @@ after narrowing, a missing-data start posts nothing. Guest pickups no
 longer close pad 1's gold dialog.
 Release path: .github/workflows/fork-prerelease.yml (exact revision, Linux tar.xz +
 Windows zip, SHA256SUMS verified, GitHub prerelease with docs/release-notes/v<version>.md).
-Next: native CI gate, then prerelease v0.1.0 for Jan; then Personal inventories.
+Prerelease v0.1.0 is built by fork-prerelease.yml from 912ba8252. Open human test: real
+pads and the Steam Deck (two controllers, guest join, inventory while the other fights).
+Next roadmap item: Personal inventories.
 
 # State — 2026-10-12
 
