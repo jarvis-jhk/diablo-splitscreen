@@ -1,3 +1,29 @@
+# Current state — 2026-10-16 (personal inventories)
+
+**Personal guest inventories** (roadmap item diablo-personal-inventories; branch
+`personal-inventories`, source e8ee04e29). Back on a guest pad opens that guest's own
+panel on the left (seat k at x = k*320, pad 1's stays on the right); any number open
+at once, nothing pauses. Guest state only: `Guest::inventoryOpen/slot`, items moved
+directly on the guest's Player (AutoEquip/AutoPlaceItemInInventory/RemoveInvItem,
+which send nothing for a non-MyPlayer hero); drop is a CMD_PUTITEM parsed as the
+guest. A wears with swap (snapshot/restore if the pack has no room), takes off, or
+uses potions/elixirs/books/aimable scrolls (scroll = cast with SpellType::Scroll and
+spellFrom); Y pack<->belt; X drop; B/Back close. Upstream change: DrawInv split into
+`DrawInvPanel(out, player, origin, highlight)`; InvRect exported for the test DLL.
+Evidence: 3 new LocalCoopTest cases (14 total) with virtual pads — both inventories
+open with independent cursors while a monster hits the guest; pad 1 walks while the
+guest's stick steers its cursor; wear/swap, unequip, belt potion, belt<->pack, drop and
+pick-up again, pad 1's hero untouched. Local Clang23 ASan/UBSan: localcoop 14, polling 8,
+hotplug 6 pass. Negative control (guest Back toggle removed): the 3 new cases fail,
+source restored byte-identical. Render (Xvfb 1280x800): JARVIS
+data/diablo/personal-inv-render/ shows both panels side by side. Native gate run
+38908816680 on e8ee04e29: Linux 635 / Windows 609 cases, 0 failures, the 2 known
+pagination skips, all 14 LocalCoopTest cases on both; logged HEAD and artifact digests
+verified (JARVIS data/diablo/personal-inv-native/). Merge adds only Markdown/release notes.
+Limits: no gold split, no cursor scrolls/oils, pad 1's class art behind guest panels,
+mouse ignores guest panels, no character sheet/spellbook/shop for guests yet.
+Open human test: real pads and the Deck (both inventories open on the couch).
+
 # Current state — 2026-10-16
 
 **Two-player proof merged** (PR2, merge 912ba8252; see docs/LOCAL-COOP.md). Native gate
