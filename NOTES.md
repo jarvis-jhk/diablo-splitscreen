@@ -15,7 +15,13 @@ Evidence: 4 new LocalCoopTest cases (18 total), local Clang23 Debug ASan/UBSan a
 fixture writes a multiplayer save "Saved" in slot 1 (a single-player save is invisible
 to an offline MP game: multi_N.sv vs single_N.sv). Render: JARVIS
 data/diablo/lobby-render/ (join panel in town, leave question in the cathedral).
-Native gate run 38921691125 dispatched; state data/diablo/controller-lobby.json.
+Native gate run 38921691125 on aabaf327c: Linux 641 / Windows 615, 0 failures, the 2 known
+pagination skips, all 18 LocalCoopTest cases on both; logged HEAD and artifact digests
+verified (JARVIS data/diablo/lobby-native/). Merged b1c7087f5 (merge adds Markdown only).
+Prerelease v0.1.2 published from b1c7087f5 (fork-prerelease run 38924395571):
+https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.2 — assets downloaded,
+GitHub digests and SHA256SUMS match, packaged LOCAL-COOP.md has the join panel, no game
+data (JARVIS data/diablo/release-v0.1.2/). Next version > v0.1.2.
 Release notes docs/release-notes/v0.1.2.md (also carries the Warpzone data change).
 Open human test: real pads and the Deck. Not done: typed names for new heroes.
 
