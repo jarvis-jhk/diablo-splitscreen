@@ -122,9 +122,11 @@ jobs:
           $name = 'diablo-splitscreen-v${{ inputs.version }}-windows-x64'
           $b = 'build-ninja-vcpkg-relwithdebinfo'
           New-Item -ItemType Directory -Force "$name/mods" | Out-Null
-          Copy-Item "$b/devilutionx.exe", "$b/devilutionx.mpq" $name
+          Copy-Item "$b/devilutionx.exe" $name
           Copy-Item "$b/*.dll" $name
-          if (Test-Path "$b/mods/hf.mpq") { Copy-Item "$b/mods/hf.mpq" "$name/mods/" }
+          # MSVC builds without smpq leave the game's own assets loose, not packed.
+          if (Test-Path "$b/devilutionx.mpq") { Copy-Item "$b/devilutionx.mpq" $name } else { Copy-Item -Recurse "$b/assets" "$name/assets" }
+          if (Test-Path "$b/mods") { Copy-Item -Recurse -Force "$b/mods/*" "$name/mods/" }
           Copy-Item LICENSE.md, docs/LOCAL-COOP.md, Packaging/resources/LICENSE.CC-BY.txt, Packaging/resources/LICENSE.OFL.txt $name
           Compress-Archive -Path $name -DestinationPath "$name.zip"
           $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLowerInvariant()

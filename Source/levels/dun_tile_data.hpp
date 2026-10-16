@@ -86,7 +86,7 @@ extern WorldTilePosition dmaxPosition;
 /** Specifies the active dungeon type of the current game. */
 extern DVL_API_FOR_TEST dungeon_type leveltype;
 /** Specifies the active quest level of the current game. */
-extern _setlevels setlvlnum;
+extern DVL_API_FOR_TEST _setlevels setlvlnum;
 /** Specifies the dungeon type of the active quest level of the current game. */
 extern dungeon_type setlvltype;
 /** Specifies the player viewpoint X,Y-coordinates of the map. */
