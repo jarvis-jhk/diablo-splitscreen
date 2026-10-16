@@ -20,6 +20,7 @@
 
 #include "diablo.h"
 #include "dvlnet/leaveinfo.hpp"
+#include "fault_report.hpp"
 #include "multi.h"
 #include "storm/storm_net.hpp"
 #include "utils/format.hpp"
@@ -61,6 +62,7 @@ void FreeDlg()
 
 void DisplayFatalErrorAndExit(std::string_view title, std::string_view body)
 {
+	ReportFault("fatal error");
 	FreeDlg();
 	UiErrorOkDialog(title, body);
 	diablo_quit(1);

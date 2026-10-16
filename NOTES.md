@@ -32,7 +32,18 @@ alone is pad 1's menu-navigator modifier; the game menu is Back+Start.
 
 Known limits (docs/LOCAL-COOP.md): guests are not saved, have no panels/stats/shops,
 no stairs/portals of their own, camera follows pad 1, offline games only.
-Next: native CI gate, then a prerelease for Jan; then Personal inventories.
+Fault relay (brief: first executable slice): Source/fault_report.cpp posts
+"Diablo Splitscreen <version> <Linux|Windows> fatal error" from app_fatal through a
+detached curl to public ntfy topic diablo-splitscreen-faults-747d46c7c1c4de46; only in
+builds configured with DEVILUTIONX_FAULT_REPORTS=ON (the prerelease workflow), opt-out
+DEVILUTIONX_NO_REPORT=1. The Linux launcher reports crash signals after exit. Windows
+SEH crashes are not reported yet. .github/workflows/fault-reports.yml turns posts into
+fault-report issues and forwards new ones via JARVIS_REPORT_URL; *-test/dev builds are
+skipped. Verified locally: a forced fatal error reached the topic. Guest pickups no
+longer close pad 1's gold dialog.
+Release path: .github/workflows/fork-prerelease.yml (exact revision, Linux tar.xz +
+Windows zip, SHA256SUMS verified, GitHub prerelease with docs/release-notes/v<version>.md).
+Next: native CI gate, then prerelease v0.1.0 for Jan; then Personal inventories.
 
 # State — 2026-10-12
 
