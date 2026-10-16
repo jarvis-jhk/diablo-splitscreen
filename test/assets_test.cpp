@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -132,5 +133,37 @@ TEST_F(HasLooseLogicAssetsTest, InactiveLooseModsAreInert)
 	EXPECT_FALSE(HasLooseLogicAssets());
 }
 #endif // !UNPACKED_MPQS
+
+TEST(LauncherDataSearchPathTest, UsesTheDirectoryOfAFoundFileOrDirectory)
+{
+	const std::string dir = std::string("Test_LauncherData") + DIRECTORY_SEPARATOR_STR;
+	const std::string file = dir + "DIABDAT.MPQ";
+	RecursivelyCreateDir(dir.c_str());
+	FILE *f = OpenFile(file.c_str(), "wb");
+	ASSERT_NE(f, nullptr);
+	std::fclose(f);
+
+	EXPECT_EQ(LauncherDataSearchPath(file.c_str()), dir);
+	EXPECT_EQ(LauncherDataSearchPath(dir.c_str()), dir);
+	EXPECT_EQ(LauncherDataSearchPath("Test_LauncherData"), dir);
+	EXPECT_EQ(LauncherDataSearchPath(nullptr), "");
+	EXPECT_EQ(LauncherDataSearchPath(""), "");
+	EXPECT_EQ(LauncherDataSearchPath((dir + "missing.mpq").c_str()), "");
+
+	RemoveFile(file.c_str());
+}
+
+TEST(LauncherDataSearchPathTest, ReadsTheEnvironment)
+{
+#ifdef _WIN32
+	const char *value = "C:\\Data\\DIABDAT.MPQ";
+	_putenv_s("DEVILUTIONX_TEST_ENV_PATH", value);
+#else
+	const char *value = "/data/DIABDAT.MPQ";
+	setenv("DEVILUTIONX_TEST_ENV_PATH", value, 1);
+#endif
+	EXPECT_EQ(GetEnvironmentPath("DEVILUTIONX_TEST_ENV_PATH"), value);
+	EXPECT_EQ(GetEnvironmentPath("DEVILUTIONX_TEST_ENV_UNSET_PATH"), "");
+}
 
 } // namespace

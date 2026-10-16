@@ -1,3 +1,16 @@
+# Warpzone game data — 2026-10-16
+
+The Warpzone launcher (>= 0.1.2) passes the DIABDAT/spawn source it found as
+`WARPZONE_DATA_DIABDAT=<file or directory>` on every start. `GetMPQSearchPaths()` now adds
+that directory (via `LauncherDataSearchPath`, unit-tested in assets_test) after
+base/pref/config and before the system/GOG/PWD paths, so the found files are used in place,
+no copy, no prompt. Descriptor `[[data]] diabdat` in jarvis-jhk/warpzone left unchanged for
+now: files/present match, and `copy_to` (Linux pref path) is still what makes v0.1.0/v0.1.1
+find the data. Once a release with this change is current, drop `copy_to`/`present` by PR
+(on Windows `~/.local/share/...` is a pointless 500 MB copy). No `known` fingerprints: no
+DIABDAT here to hash, and a list with only spawn.mpq would flag every real DIABDAT as
+"unknown version"; the game's own loader validates.
+
 # Current state — 2026-10-16 (personal inventories)
 
 **Personal guest inventories** (roadmap item diablo-personal-inventories; branch

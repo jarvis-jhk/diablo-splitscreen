@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <limits>
@@ -59,6 +60,28 @@
 #endif
 
 namespace devilution {
+
+std::string GetEnvironmentPath(const char *name)
+{
+#if defined(_WIN32) && !defined(DEVILUTIONX_WINDOWS_NO_WCHAR) && !defined(__UWP__)
+	const auto wideName = ToWideChar(name);
+	if (wideName == nullptr)
+		return {};
+	const wchar_t *value = _wgetenv(wideName.get());
+	if (value == nullptr || *value == L'\0')
+		return {};
+	const int size = ::WideCharToMultiByte(CP_UTF8, 0, value, -1, nullptr, 0, nullptr, nullptr);
+	if (size <= 1)
+		return {};
+	std::string utf8(static_cast<size_t>(size), '\0');
+	::WideCharToMultiByte(CP_UTF8, 0, value, -1, utf8.data(), size, nullptr, nullptr);
+	utf8.resize(static_cast<size_t>(size - 1));
+	return utf8;
+#else
+	const char *value = std::getenv(name);
+	return value != nullptr ? std::string(value) : std::string();
+#endif
+}
 
 #if defined(_WIN32) && !defined(DEVILUTIONX_WINDOWS_NO_WCHAR)
 std::unique_ptr<wchar_t[]> ToWideChar(std::string_view path)
