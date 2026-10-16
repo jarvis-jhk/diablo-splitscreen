@@ -18,6 +18,7 @@
 #include "controls/devices/joystick.h"
 #include "control/control.hpp"
 #include "cursor.h"
+#include "engine/assets.hpp"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
 #include "engine/render/primitive_render.hpp"
@@ -34,10 +35,12 @@
 #include "monster.h"
 #include "msg.h"
 #include "multi.h"
+#include "options.h"
 #include "pfile.h"
 #include "player.h"
 #include "plrmsg.h"
 #include "spells.h"
+#include "tables/playerdat.hpp"
 #include "tables/spelldat.h"
 #include "utils/endian_swap.hpp"
 #include "utils/language.h"
@@ -57,6 +60,11 @@ struct Guest {
 	uint8_t playerId;
 	SDL_JoystickID device;
 	std::optional<uint32_t> saveNumber;
+	// P2..P4 is seat 0..2. A seat is kept for as long as the guest plays, so
+	// labels and panels never move when another guest leaves.
+	size_t seat;
+	// Start on the guest's pad asks "leave the game?"; A leaves, B stays.
+	bool leaveConfirm = false;
 	SpellID spell = SpellID::Invalid;
 	bool attackHeld = false;
 	bool walking = false;
@@ -70,6 +78,34 @@ struct Guest {
 
 std::vector<Guest> Guests;
 SDL_JoystickID PrimaryDevice = -1;
+
+// A hero a joining pad can pick: one of the user's saved heroes that is not
+// in play yet, or a new level-1 hero of a class this game data allows.
+struct HeroChoice {
+	std::optional<uint32_t> saveNumber;
+	HeroClass heroClass;
+	std::string label;
+};
+
+// A pad that pressed Start and is choosing its hero. Its device is claimed
+// from that moment, so its choosing never reaches pad 1.
+struct Joiner {
+	SDL_JoystickID device;
+	std::vector<HeroChoice> choices;
+	int selected = 0;
+	AxisDirection navDirection { AxisDirectionX_NONE, AxisDirectionY_NONE };
+	int navTicks = 0;
+};
+std::vector<Joiner> Joiners;
+
+Joiner *FindJoiner(SDL_JoystickID device)
+{
+	for (Joiner &joiner : Joiners) {
+		if (joiner.device == device)
+			return &joiner;
+	}
+	return nullptr;
+}
 
 struct PendingCommand {
 	uint8_t playerId;
@@ -153,23 +189,23 @@ void ReadLeftStick(SDL_JoystickID device, float &x, float &y)
 #endif
 }
 
-AxisDirection GuestDirection(const Guest &guest)
+AxisDirection DeviceDirection(SDL_JoystickID device)
 {
 	AxisDirection dir { AxisDirectionX_NONE, AxisDirectionY_NONE };
-	if (IsControllerButtonPressedOnDevice(guest.device, ControllerButton_BUTTON_DPAD_LEFT))
+	if (IsControllerButtonPressedOnDevice(device, ControllerButton_BUTTON_DPAD_LEFT))
 		dir.x = AxisDirectionX_LEFT;
-	else if (IsControllerButtonPressedOnDevice(guest.device, ControllerButton_BUTTON_DPAD_RIGHT))
+	else if (IsControllerButtonPressedOnDevice(device, ControllerButton_BUTTON_DPAD_RIGHT))
 		dir.x = AxisDirectionX_RIGHT;
-	if (IsControllerButtonPressedOnDevice(guest.device, ControllerButton_BUTTON_DPAD_UP))
+	if (IsControllerButtonPressedOnDevice(device, ControllerButton_BUTTON_DPAD_UP))
 		dir.y = AxisDirectionY_UP;
-	else if (IsControllerButtonPressedOnDevice(guest.device, ControllerButton_BUTTON_DPAD_DOWN))
+	else if (IsControllerButtonPressedOnDevice(device, ControllerButton_BUTTON_DPAD_DOWN))
 		dir.y = AxisDirectionY_DOWN;
 	if (dir.x != AxisDirectionX_NONE || dir.y != AxisDirectionY_NONE)
 		return dir;
 
 	float x;
 	float y;
-	ReadLeftStick(guest.device, x, y);
+	ReadLeftStick(device, x, y);
 	if (x * x + y * y < StickDeadzone * StickDeadzone)
 		return dir;
 	// SDL's stick y grows downwards; 8-way sectors at 22.5°.
@@ -181,6 +217,11 @@ AxisDirection GuestDirection(const Guest &guest)
 	if (absX == 0 || absY / absX > DiagonalCutoff)
 		dir.y = y < 0 ? AxisDirectionY_UP : AxisDirectionY_DOWN;
 	return dir;
+}
+
+AxisDirection GuestDirection(const Guest &guest)
+{
+	return DeviceDirection(guest.device);
 }
 
 Direction ToDirection(AxisDirection dir)
@@ -458,26 +499,64 @@ void WalkGuest(Guest &guest, AxisDirection axis)
 	guest.walking = true;
 }
 
-std::optional<uint32_t> FindGuestSave()
+bool IsSaveInPlay(uint32_t saveNum)
 {
+	return saveNum == gSaveNumber
+	    || std::any_of(Guests.begin(), Guests.end(), [saveNum](const Guest &g) { return g.saveNumber == saveNum; });
+}
+
+// The same classes the hero menu offers for this game data.
+bool IsClassPlayable(HeroClass heroClass)
+{
+	if (heroClass == HeroClass::Monk && !gbIsHellfire)
+		return false;
+	if (heroClass == HeroClass::Bard && !HaveBardAssets() && !*GetOptions().Gameplay.testBard)
+		return false;
+	if (heroClass == HeroClass::Barbarian && !HaveBarbarianAssets() && !*GetOptions().Gameplay.testBarbarian)
+		return false;
+	if (gbIsSpawn && (heroClass == HeroClass::Rogue || heroClass == HeroClass::Sorcerer || (heroClass == HeroClass::Bard && !HaveBardAssets())))
+		return false;
+	return true;
+}
+
+std::vector<HeroChoice> HeroChoices()
+{
+	std::vector<HeroChoice> choices;
 	for (uint32_t saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
-		if (saveNum == gSaveNumber)
+		if (IsSaveInPlay(saveNum))
 			continue;
-		if (std::any_of(Guests.begin(), Guests.end(), [saveNum](const Guest &g) { return g.saveNumber == saveNum; }))
+		char name[PlayerNameLength];
+		HeroClass heroClass;
+		uint8_t level;
+		if (!pfile_read_hero_summary(saveNum, name, heroClass, level) || !IsClassPlayable(heroClass))
 			continue;
-		if (OpenSaveArchive(saveNum))
-			return saveNum;
+		choices.push_back({ saveNum, heroClass,
+		    FormatRuntime(_("{:s}, level {:d} {:s}"), std::string_view(name), level, _(GetPlayerDataForClass(heroClass).className)) });
 	}
-	return std::nullopt;
+	for (size_t i = 0; i < GetNumPlayerClasses(); i++) {
+		const auto heroClass = static_cast<HeroClass>(i);
+		if (IsClassPlayable(heroClass))
+			choices.push_back({ std::nullopt, heroClass, FormatRuntime(_("New {:s}"), _(GetPlayerDataForClass(heroClass).className)) });
+	}
+	return choices;
+}
+
+size_t FreeSeat()
+{
+	for (size_t seat = 0; seat < MaxLocalGuests; seat++) {
+		if (std::none_of(Guests.begin(), Guests.end(), [seat](const Guest &g) { return g.seat == seat; }))
+			return seat;
+	}
+	return MaxLocalGuests;
 }
 
 // A guest plays another of the user's saved heroes, read only: nothing in
 // local co-op writes a guest back, so no save can be overwritten by it.
-void LoadGuestHero(Player &player, std::optional<uint32_t> saveNumber, size_t seat)
+void LoadGuestHero(Player &player, const HeroChoice &choice, size_t seat)
 {
-	if (saveNumber) {
+	if (choice.saveNumber) {
 		const bool validSaveFile = gbValidSaveFile;
-		pfile_read_player_from_save(*saveNumber, player);
+		pfile_read_player_from_save(*choice.saveNumber, player);
 		gbValidSaveFile = validSaveFile;
 		return;
 	}
@@ -486,7 +565,7 @@ void LoadGuestHero(Player &player, std::optional<uint32_t> saveNumber, size_t se
 	const bool cursorLoaded = IsCursorLoaded();
 	if (cursorLoaded)
 		FreeCursor();
-	CreatePlayer(player, gbIsSpawn ? HeroClass::Warrior : HeroClass::Rogue);
+	CreatePlayer(player, choice.heroClass);
 	if (cursorLoaded)
 		InitCursor();
 	CopyUtf8(player._pName, StrCat("Player ", seat + 2), PlayerNameLength);
@@ -532,6 +611,23 @@ constexpr int GuestInfoLineHeight = 16;
 constexpr int GuestPanelHeight = GuestInfoTop + 2 * GuestInfoLineHeight + 4;
 constexpr int NavRepeatDelay = 6;
 constexpr int NavRepeatInterval = 3;
+
+// One step when a direction is first held, then key-repeat while it stays held.
+bool NavStep(AxisDirection dir, AxisDirection &held, int &ticks)
+{
+	if (dir.x == AxisDirectionX_NONE && dir.y == AxisDirectionY_NONE) {
+		held = dir;
+		ticks = 0;
+		return false;
+	}
+	if (dir.x != held.x || dir.y != held.y) {
+		held = dir;
+		ticks = 0;
+		return true;
+	}
+	ticks++;
+	return ticks >= NavRepeatDelay && (ticks - NavRepeatDelay) % NavRepeatInterval == 0;
+}
 
 // Panel-relative rectangle of a slot; the belt is a row under the panel.
 Rectangle GuestSlotRect(int slot)
@@ -888,19 +984,7 @@ void SetGuestInventoryOpen(Guest &guest, bool open)
 void UpdateGuestInventoryCursor(Guest &guest)
 {
 	const AxisDirection dir = GuestDirection(guest);
-	if (dir.x == AxisDirectionX_NONE && dir.y == AxisDirectionY_NONE) {
-		guest.navDirection = dir;
-		guest.navTicks = 0;
-		return;
-	}
-	if (dir.x != guest.navDirection.x || dir.y != guest.navDirection.y) {
-		guest.navDirection = dir;
-		guest.navTicks = 0;
-		MoveGuestSlot(guest, dir);
-		return;
-	}
-	guest.navTicks++;
-	if (guest.navTicks >= NavRepeatDelay && (guest.navTicks - NavRepeatDelay) % NavRepeatInterval == 0)
+	if (NavStep(dir, guest.navDirection, guest.navTicks))
 		MoveGuestSlot(guest, dir);
 }
 
@@ -1025,10 +1109,15 @@ void ProcessGuestCommands()
 	}
 }
 
-bool JoinLocalGuest(SDL_JoystickID device)
+namespace {
+
+bool JoinWithHero(SDL_JoystickID device, const HeroChoice &choice)
 {
-	if (!IsLocalCoopAvailable() || device == -1 || FindGuest(device) != nullptr || Guests.size() >= MaxLocalGuests)
+	const size_t seat = FreeSeat();
+	if (!IsLocalCoopAvailable() || device == -1 || FindGuest(device) != nullptr || seat >= MaxLocalGuests)
 		return false;
+	if (choice.saveNumber && IsSaveInPlay(*choice.saveNumber))
+		return false; // another pad joined with this hero meanwhile
 
 	std::optional<uint8_t> freeId;
 	for (size_t i = 0; i < Players.size(); i++) {
@@ -1042,9 +1131,8 @@ bool JoinLocalGuest(SDL_JoystickID device)
 
 	Player &player = Players[*freeId];
 	const Player &myPlayer = *MyPlayer;
-	const std::optional<uint32_t> saveNumber = FindGuestSave();
 	player = { };
-	LoadGuestHero(player, saveNumber, Guests.size());
+	LoadGuestHero(player, choice, seat);
 
 	player.plrlevel = myPlayer.plrlevel;
 	player.plrIsOnSetLevel = myPlayer.plrIsOnSetLevel;
@@ -1055,7 +1143,7 @@ bool JoinLocalGuest(SDL_JoystickID device)
 	player.plractive = true;
 	gbActivePlayers++;
 
-	Guests.push_back({ *freeId, device, saveNumber });
+	Guests.push_back({ *freeId, device, choice.saveNumber, seat });
 	SetControllerDeviceClaimed(device, true);
 	Guest &guest = Guests.back();
 
@@ -1069,8 +1157,76 @@ bool JoinLocalGuest(SDL_JoystickID device)
 	}
 	guest.spell = NextGuestSpell(player, SpellID::Invalid);
 
-	EventPlrMsg(FormatRuntime(_("{:s} joined on controller {:d}"), player._pName, Guests.size() + 1));
+	EventPlrMsg(FormatRuntime(_("{:s} joined as player {:d}"), player._pName, seat + 2));
 	return true;
+}
+
+void RemoveJoiner(SDL_JoystickID device, bool releaseDevice)
+{
+	const auto it = std::find_if(Joiners.begin(), Joiners.end(), [device](const Joiner &j) { return j.device == device; });
+	if (it == Joiners.end())
+		return;
+	Joiners.erase(it);
+	if (releaseDevice)
+		SetControllerDeviceClaimed(device, false);
+}
+
+// Start on a free pad: open its join panel, if a seat is left for it.
+bool OpenJoinPanel(SDL_JoystickID device)
+{
+	if (Guests.size() + Joiners.size() >= MaxLocalGuests)
+		return false;
+	Joiners.push_back({ device, HeroChoices() });
+	SetControllerDeviceClaimed(device, true);
+	return true;
+}
+
+void ConfirmJoin(Joiner &joiner)
+{
+	const SDL_JoystickID device = joiner.device;
+	if (joiner.choices.empty())
+		return;
+	const HeroChoice choice = joiner.choices[joiner.selected];
+	RemoveJoiner(device, /*releaseDevice=*/false);
+	if (!JoinWithHero(device, choice)) {
+		// The hero was taken by another pad a moment ago: choose again.
+		Joiners.push_back({ device, HeroChoices() });
+	}
+}
+
+} // namespace
+
+bool JoinLocalGuest(SDL_JoystickID device)
+{
+	const std::vector<HeroChoice> choices = HeroChoices();
+	return !choices.empty() && FindJoiner(device) == nullptr && Guests.size() + Joiners.size() < MaxLocalGuests && JoinWithHero(device, choices.front());
+}
+
+bool IsLocalJoinPending(SDL_JoystickID device)
+{
+	return FindJoiner(device) != nullptr;
+}
+
+std::vector<std::string> LocalJoinChoices(SDL_JoystickID device)
+{
+	std::vector<std::string> labels;
+	if (const Joiner *joiner = FindJoiner(device); joiner != nullptr) {
+		for (const HeroChoice &choice : joiner->choices)
+			labels.push_back(choice.label);
+	}
+	return labels;
+}
+
+int LocalJoinSelection(SDL_JoystickID device)
+{
+	const Joiner *joiner = FindJoiner(device);
+	return joiner != nullptr ? joiner->selected : -1;
+}
+
+bool IsLocalGuestLeaveMenuOpen(SDL_JoystickID device)
+{
+	const Guest *guest = FindGuest(device);
+	return guest != nullptr && guest->leaveConfirm;
 }
 
 void RemoveLocalGuest(SDL_JoystickID device)
@@ -1095,7 +1251,10 @@ void ResetLocalGuests()
 {
 	for (const Guest &guest : Guests)
 		SetControllerDeviceClaimed(guest.device, false);
+	for (const Joiner &joiner : Joiners)
+		SetControllerDeviceClaimed(joiner.device, false);
 	Guests.clear();
+	Joiners.clear();
 	PendingCommands.clear();
 	PrimaryDevice = -1;
 }
@@ -1109,6 +1268,24 @@ bool HandleLocalCoopEvent(const SDL_Event &event)
 	if (device == -1)
 		return false;
 
+	// The join panel acts when a button is released, so nothing is still held
+	// when the pad changes hands (to a guest, or back to the shared path).
+	if (Joiner *joiner = FindJoiner(device); joiner != nullptr) {
+		for (const ControllerButtonEvent ctrlEvent : ToControllerButtonEvents(event)) {
+			if (!ctrlEvent.up)
+				continue;
+			if (ctrlEvent.button == ControllerButton_BUTTON_A) {
+				ConfirmJoin(*joiner);
+				break;
+			}
+			if (ctrlEvent.button == ControllerButton_BUTTON_B || ctrlEvent.button == ControllerButton_BUTTON_BACK) {
+				RemoveJoiner(device, /*releaseDevice=*/true);
+				break;
+			}
+		}
+		return true;
+	}
+
 	Guest *guest = FindGuest(device);
 	if (guest == nullptr) {
 		for (const ControllerButtonEvent ctrlEvent : ToControllerButtonEvents(event)) {
@@ -1121,13 +1298,28 @@ bool HandleLocalCoopEvent(const SDL_Event &event)
 				return false;
 			}
 			if (device != PrimaryDevice && ctrlEvent.button == ControllerButton_BUTTON_START)
-				return JoinLocalGuest(device);
+				return OpenJoinPanel(device);
 		}
 		return false;
 	}
 
 	Player &player = Players[guest->playerId];
 	for (const ControllerButtonEvent ctrlEvent : ToControllerButtonEvents(event)) {
+		if (guest->leaveConfirm) {
+			if (ctrlEvent.up && ctrlEvent.button == ControllerButton_BUTTON_A) {
+				RemoveLocalGuest(device);
+				return true;
+			}
+			if ((ctrlEvent.up && ctrlEvent.button == ControllerButton_BUTTON_B) || (!ctrlEvent.up && ctrlEvent.button == ControllerButton_BUTTON_START))
+				guest->leaveConfirm = false;
+			continue;
+		}
+		if (!ctrlEvent.up && ctrlEvent.button == ControllerButton_BUTTON_START) {
+			SetGuestInventoryOpen(*guest, false);
+			guest->attackHeld = false;
+			guest->leaveConfirm = true;
+			continue;
+		}
 		if (ctrlEvent.button == ControllerButton_BUTTON_A)
 			guest->attackHeld = !ctrlEvent.up && !guest->inventoryOpen;
 		if (ctrlEvent.up || !player.plractive || !player.isOnActiveLevel() || player.hasNoLife() || player._pmode == PM_DEATH)
@@ -1188,6 +1380,20 @@ void UpdateLocalGuests()
 		}
 		i++;
 	}
+	for (size_t i = 0; i < Joiners.size();) {
+		if (!IsDeviceConnected(Joiners[i].device)) {
+			RemoveJoiner(Joiners[i].device, /*releaseDevice=*/true);
+			continue;
+		}
+		i++;
+	}
+	for (Joiner &joiner : Joiners) {
+		const AxisDirection dir = DeviceDirection(joiner.device);
+		if (!NavStep(dir, joiner.navDirection, joiner.navTicks) || dir.y == AxisDirectionY_NONE || joiner.choices.empty())
+			continue;
+		const int count = static_cast<int>(joiner.choices.size());
+		joiner.selected = (joiner.selected + (dir.y == AxisDirectionY_DOWN ? 1 : count - 1)) % count;
+	}
 
 	for (Guest &guest : Guests) {
 		Player &player = Players[guest.playerId];
@@ -1195,6 +1401,8 @@ void UpdateLocalGuests()
 			SetGuestInventoryOpen(guest, false);
 			continue;
 		}
+		if (guest.leaveConfirm)
+			continue;
 		if (guest.inventoryOpen) {
 			UpdateGuestInventoryCursor(guest);
 			continue;
@@ -1272,39 +1480,80 @@ int GuestInventorySlot(const Player &player)
 
 void DrawLocalGuestInventories(const Surface &out)
 {
-	for (size_t seat = 0; seat < Guests.size(); seat++) {
-		const Guest &guest = Guests[seat];
+	for (const Guest &guest : Guests) {
 		const Player &player = Players[guest.playerId];
 		if (guest.inventoryOpen && player.plractive && player.isOnActiveLevel())
-			DrawGuestInventory(out, guest, seat);
+			DrawGuestInventory(out, guest, guest.seat);
 	}
 }
 
+namespace {
+
+// A joining pad's hero list: saved heroes first, then a new hero per class.
+// At most VisibleChoices rows show, scrolled to keep the selection in view.
+int DrawJoinPanel(const Surface &out, const Joiner &joiner, int y)
+{
+	constexpr int LineHeight = 18;
+	constexpr int Width = 400;
+	constexpr int VisibleChoices = 8;
+	const int x = (out.w() - Width) / 2;
+	const int count = static_cast<int>(joiner.choices.size());
+	const int rows = std::min(count, VisibleChoices);
+	const int first = std::clamp(joiner.selected - rows / 2, 0, std::max(0, count - rows));
+	const int height = (rows + 2) * LineHeight + 8;
+	DrawHalfTransparentRectTo(out, x, y, Width, height);
+	DrawHalfTransparentRectTo(out, x, y, Width, height);
+	const auto line = [&](std::string_view text, int row, UiFlags color) {
+		DrawString(out, text, { { x, y + 4 + row * LineHeight }, { Width, LineHeight } },
+		    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | color });
+	};
+	line(_("New player: choose your hero"), 0, UiFlags::ColorWhitegold);
+	for (int row = 0; row < rows; row++) {
+		const int index = first + row;
+		const bool selected = index == joiner.selected;
+		const std::string text = selected ? StrCat("> ", joiner.choices[index].label, " <") : joiner.choices[index].label;
+		line(text, row + 1, selected ? UiFlags::ColorGold : UiFlags::ColorWhite);
+	}
+	line(_("Stick: choose   A: join   B: cancel"), rows + 1, UiFlags::ColorWhitegold);
+	return y + height + 4;
+}
+
+} // namespace
+
 void DrawLocalCoopHud(const Surface &out)
 {
-	if (Guests.empty())
+	if (Guests.empty() && Joiners.empty())
 		return;
 	constexpr int LineHeight = 18;
 	constexpr int Width = 560;
 	const int x = (out.w() - Width) / 2;
 	int y = 4;
-	for (size_t i = 0; i < Guests.size(); i++) {
-		const Player &player = Players[Guests[i].playerId];
-		const SpellID spell = Guests[i].spell;
+	for (size_t seat = 0; seat < MaxLocalGuests; seat++) {
+		const auto it = std::find_if(Guests.begin(), Guests.end(), [seat](const Guest &g) { return g.seat == seat; });
+		if (it == Guests.end())
+			continue;
+		const Player &player = Players[it->playerId];
+		const SpellID spell = it->spell;
 		const std::string spellName = spell == SpellID::Invalid ? std::string(_("no spell")) : std::string(pgettext("spell", GetSpellData(spell).sNameText));
 		std::string text;
-		if (player.hasNoLife() || player._pmode == PM_DEATH) {
-			text = FormatRuntime(_("P{:d} {:s}: fallen, back on the next level"), i + 2, player._pName);
+		UiFlags color = player.hasNoLife() ? UiFlags::ColorRed : UiFlags::ColorWhite;
+		if (it->leaveConfirm) {
+			text = FormatRuntime(_("P{:d} {:s}: leave the game?  A: leave  B: stay"), seat + 2, player._pName);
+			color = UiFlags::ColorGold;
+		} else if (player.hasNoLife() || player._pmode == PM_DEATH) {
+			text = FormatRuntime(_("P{:d} {:s}: fallen, back on the next level"), seat + 2, player._pName);
 		} else {
 			text = FormatRuntime(_("P{:d} {:s}  Life {:d}/{:d}  Mana {:d}/{:d}  X: {:s}"),
-			    i + 2, player._pName, player._pHitPoints.whole(), player._pMaxHP.whole(),
+			    seat + 2, player._pName, player._pHitPoints.whole(), player._pMaxHP.whole(),
 			    player._pMana.whole(), player._pMaxMana.whole(), spellName);
 		}
 		DrawHalfTransparentRectTo(out, x, y, Width, LineHeight);
 		DrawString(out, text, { { x, y + 2 }, { Width, LineHeight } },
-		    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | (player.hasNoLife() ? UiFlags::ColorRed : UiFlags::ColorWhite) });
+		    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | color });
 		y += LineHeight + 2;
 	}
+	for (const Joiner &joiner : Joiners)
+		y = DrawJoinPanel(out, joiner, y + 4);
 }
 
 } // namespace devilution

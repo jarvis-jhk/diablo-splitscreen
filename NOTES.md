@@ -1,3 +1,24 @@
+# Controller lobby — 2026-10-16
+
+Roadmap item diablo-controller-lobby (branch `controller-lobby`, source aabaf327c).
+Start on a free pad no longer joins at once: it claims the pad and opens a join panel
+(`Joiner` in localcoop.cpp, drawn under the guest HUD lines) listing saved heroes not in
+play (pad 1's gSaveNumber and other guests' saves left out; `pfile_read_hero_summary`
+reads only the hero pack), then "New <class>" for every class the hero menu would allow
+(spawn: Warrior only). Stick/D-pad choose (wraps), A joins, B/Back cancels and releases
+the pad; panel buttons act on release so nothing is held when the pad changes hands.
+A save picked by another pad meanwhile reopens the list. Start on a guest pad asks
+"leave the game?" in its HUD line (A leaves, B/Start stays; hero stands meanwhile).
+Guests carry a fixed `seat` (P2..P4): HUD label, panel position and new-hero name.
+`JoinLocalGuest(device)` stays as a direct join with the first choice (tests/tools).
+Evidence: 4 new LocalCoopTest cases (18 total), local Clang23 Debug ASan/UBSan all pass;
+fixture writes a multiplayer save "Saved" in slot 1 (a single-player save is invisible
+to an offline MP game: multi_N.sv vs single_N.sv). Render: JARVIS
+data/diablo/lobby-render/ (join panel in town, leave question in the cathedral).
+Native gate run 38921691125 dispatched; state data/diablo/controller-lobby.json.
+Release notes docs/release-notes/v0.1.2.md (also carries the Warpzone data change).
+Open human test: real pads and the Deck. Not done: typed names for new heroes.
+
 # Warpzone game data — 2026-10-16
 
 The Warpzone launcher (>= 0.1.2) passes the DIABDAT/spawn source it found as

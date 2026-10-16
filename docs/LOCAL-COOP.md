@@ -8,11 +8,19 @@ control. It is a proof, not the finished couch game; the limits below are real.
 
 1. Start **Multi Player → Offline**, create a game and pick pad 1's hero as usual.
 2. In the game, press any button on pad 1 first. The first pad pressed is pad 1.
-3. Press **Start on another controller**. A second hero joins next to pad 1.
-   Up to three extra controllers can join this way.
+3. Press **Start on another controller**. A join panel opens on the shared screen
+   with that controller's hero choices: every saved hero that is not already
+   playing (pad 1's hero and other guests' heroes are left out), then a new
+   level-1 hero of each class this game data allows. Choose with the stick or
+   D-pad, **A** joins, **B** cancels and gives the controller back. Nothing
+   pauses while a pad chooses. Up to three extra controllers can join this way.
+4. To leave, press **Start on the guest's controller**: the guest's line at the
+   top asks "leave the game?". **A** leaves, **B** (or Start again) stays. The
+   hero becomes free to pick again and the controller is released.
 
-The guest hero is the next saved hero in your list that is not pad 1's. If you
-have only one hero, the guest is a fresh level-1 character ("Player 2").
+A new hero is called "Player 2" (3, 4 by seat). Each guest keeps its seat
+(P2, P3, P4) and its panel position for as long as it plays, even when another
+guest leaves.
 
 Guest controls:
 
@@ -24,6 +32,7 @@ Guest controls:
 | Y | select the next spell the hero knows |
 | B | drink a potion from the belt (life first if hurt, then mana) |
 | Back | open or close the guest's own inventory |
+| Start | ask to leave the game (A leaves, B stays) |
 
 ## The guest's inventory
 

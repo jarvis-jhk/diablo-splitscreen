@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
@@ -40,7 +42,19 @@ int LocalGuestOnDevice(SDL_JoystickID device);
 void SendGuestCommand(uint8_t playerId, const std::byte *data, size_t size);
 void ProcessGuestCommands();
 
+/**
+ * @brief Join at once with the first hero the join panel would offer.
+ * Start on a free pad opens the panel instead; this is for tests and tools.
+ */
 bool JoinLocalGuest(SDL_JoystickID device);
+/** @brief A pad that pressed Start and is choosing its hero in the join panel. */
+bool IsLocalJoinPending(SDL_JoystickID device);
+/** @brief The join panel's entries for that pad, in order; empty if none. */
+std::vector<std::string> LocalJoinChoices(SDL_JoystickID device);
+/** @brief The entry the pad's join panel has selected, or -1. */
+int LocalJoinSelection(SDL_JoystickID device);
+/** @brief Start on a guest's pad asked "leave the game?" and it is waiting. */
+bool IsLocalGuestLeaveMenuOpen(SDL_JoystickID device);
 void RemoveLocalGuest(SDL_JoystickID device);
 /** @brief Forget every guest and claimed device (game end). */
 void ResetLocalGuests();

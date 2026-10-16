@@ -34,6 +34,7 @@
 #include "monster.h"
 #include "multi.h"
 #include "options.h"
+#include "pfile.h"
 #include "player.h"
 #include "qol/monhealthbar.h"
 #include "qol/xpbar.h"
@@ -282,6 +283,18 @@ public:
 			init_create_window();
 			InitItemGFX();
 		}
+
+		// One saved hero besides pad 1's (save 0), for the join panel to offer;
+		// a multiplayer hero, the kind an offline multiplayer game lists.
+		gbIsMultiplayer = true;
+		Players.resize(1);
+		_uiheroinfo saved { };
+		saved.saveNumber = 1;
+		CopyUtf8(saved.name, "Saved", sizeof(saved.name));
+		saved.heroclass = HeroClass::Warrior;
+		ASSERT_TRUE(pfile_ui_save_create(&saved));
+		Players.clear();
+		gbIsMultiplayer = false;
 	}
 
 	static void TearDownTestSuite()
@@ -367,10 +380,18 @@ protected:
 		ASSERT_NE(GameController::Get(padB_->id()), nullptr);
 	}
 
+	// Start opens the join panel; the guest is a new Warrior, so every case
+	// starts from the same fresh hero.
 	void JoinGuest()
 	{
 		Press(*padA_, SDL_CONTROLLER_BUTTON_BACK); // pad 1 is the first pad pressed; Back alone does nothing
 		Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+		ASSERT_TRUE(IsLocalJoinPending(padB_->id()));
+		Press(*padB_, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+		const std::vector<std::string> choices = LocalJoinChoices(padB_->id());
+		ASSERT_EQ(LocalJoinSelection(padB_->id()), 1);
+		ASSERT_EQ(choices[1], "New Warrior");
+		Press(*padB_, SDL_CONTROLLER_BUTTON_A);
 		ASSERT_EQ(LocalGuestCount(), 1u);
 	}
 
@@ -799,3 +820,114 @@ TEST_F(LocalCoopTest, GuestWearsUsesBeltsAndDropsItsOwnItems)
 }
 
 } // namespace
+
+// ---- Controller lobby ------------------------------------------------------
+
+TEST_F(LocalCoopTest, StartOpensAJoinPanelOfferingSavedHeroesAndNewClasses)
+{
+	Press(*padA_, SDL_CONTROLLER_BUTTON_BACK);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	EXPECT_TRUE(IsLocalJoinPending(padB_->id()));
+	EXPECT_EQ(LocalGuestCount(), 0u);
+	EXPECT_TRUE(IsControllerDeviceClaimed(padB_->id()));
+	EXPECT_FALSE(gmenu_is_active());
+	// spawn.mpq allows the Warrior only; pad 1's own save 0 is not offered.
+	const std::vector<std::string> expected { "Saved, level 1 Warrior", "New Warrior" };
+	EXPECT_EQ(LocalJoinChoices(padB_->id()), expected);
+	EXPECT_EQ(LocalJoinSelection(padB_->id()), 0);
+	Snapshot("20-join-panel");
+
+	// The stick wraps around the list and moves nothing in the world.
+	const Point myStart = MyPlayer->position.tile;
+	Press(*padB_, SDL_CONTROLLER_BUTTON_DPAD_UP);
+	EXPECT_EQ(LocalJoinSelection(padB_->id()), 1);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+	EXPECT_EQ(LocalJoinSelection(padB_->id()), 0);
+	EXPECT_EQ(MyPlayer->position.tile, myStart);
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	EXPECT_FALSE(IsLocalJoinPending(padB_->id()));
+	ASSERT_EQ(LocalGuestCount(), 1u);
+	EXPECT_STREQ(Guest()._pName, "Saved");
+	EXPECT_STREQ(MyPlayer->_pName, "PadOne");
+	EXPECT_EQ(LocalGuestOnDevice(padB_->id()), Guest().getId());
+	EXPECT_EQ(MyPlayer->walkpath[0], WALK_NONE); // the confirming A never reached pad 1
+}
+
+TEST_F(LocalCoopTest, BCancelsTheJoinPanelAndReleasesThePad)
+{
+	Press(*padA_, SDL_CONTROLLER_BUTTON_BACK);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	ASSERT_TRUE(IsLocalJoinPending(padB_->id()));
+	Press(*padB_, SDL_CONTROLLER_BUTTON_B);
+	EXPECT_FALSE(IsLocalJoinPending(padB_->id()));
+	EXPECT_FALSE(IsControllerDeviceClaimed(padB_->id()));
+	EXPECT_EQ(LocalGuestCount(), 0u);
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	EXPECT_TRUE(IsLocalJoinPending(padB_->id()));
+	padB_->Unplug();
+	Tick(3);
+	EXPECT_FALSE(IsLocalJoinPending(padB_->id()));
+	EXPECT_EQ(LocalGuestCount(), 0u);
+}
+
+TEST_F(LocalCoopTest, ASavedHeroInPlayIsNotOfferedToTheNextPad)
+{
+	Press(*padA_, SDL_CONTROLLER_BUTTON_BACK);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A); // "Saved"
+	ASSERT_EQ(LocalGuestCount(), 1u);
+
+	VirtualPad padC;
+	Tick();
+	Press(padC, SDL_CONTROLLER_BUTTON_START);
+	ASSERT_TRUE(IsLocalJoinPending(padC.id()));
+	const std::vector<std::string> expected { "New Warrior" };
+	EXPECT_EQ(LocalJoinChoices(padC.id()), expected);
+	Press(padC, SDL_CONTROLLER_BUTTON_A);
+	ASSERT_EQ(LocalGuestCount(), 2u);
+	EXPECT_STREQ(Players[LocalGuestOnDevice(padC.id())]._pName, "Player 3");
+	padC.Unplug();
+	Tick(3);
+	EXPECT_EQ(LocalGuestCount(), 1u);
+}
+
+TEST_F(LocalCoopTest, StartThenALetsAGuestLeaveAndFreesItsHero)
+{
+	Press(*padA_, SDL_CONTROLLER_BUTTON_BACK);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A); // "Saved"
+	ASSERT_EQ(LocalGuestCount(), 1u);
+	EnterDungeon();
+	Player &guest = Guest();
+	const uint8_t guestId = guest.getId();
+
+	// Start asks first; while it asks, the guest's stick moves nobody.
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	EXPECT_TRUE(IsLocalGuestLeaveMenuOpen(padB_->id()));
+	EXPECT_FALSE(gmenu_is_active());
+	const Point guestStart = guest.position.tile;
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
+	Tick(30);
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	Tick();
+	EXPECT_EQ(guest.position.tile, guestStart);
+	Snapshot("21-leave-question");
+	Press(*padB_, SDL_CONTROLLER_BUTTON_B); // stay
+	EXPECT_FALSE(IsLocalGuestLeaveMenuOpen(padB_->id()));
+	EXPECT_EQ(LocalGuestCount(), 1u);
+
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A); // leave
+	EXPECT_EQ(LocalGuestCount(), 0u);
+	EXPECT_FALSE(Players[guestId].plractive);
+	EXPECT_FALSE(IsControllerDeviceClaimed(padB_->id()));
+	EXPECT_TRUE(MyPlayer->plractive);
+	EXPECT_EQ(MyPlayer->walkpath[0], WALK_NONE);
+
+	// The freed hero is offered again.
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	ASSERT_TRUE(IsLocalJoinPending(padB_->id()));
+	EXPECT_EQ(LocalJoinChoices(padB_->id()).front(), "Saved, level 1 Warrior");
+}
