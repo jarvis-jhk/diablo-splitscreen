@@ -13,10 +13,10 @@ WalkGuest refuses a step that grows the party box past the screen room (window l
 always allowed. A refused step stands the hero and clears its path. Off while
 gbProcessPlayers is false (Diablo's death scene steers ViewPosition) and without guests
 (upstream path untouched). Headless tests now set a 640x480 screen geometry.
-Evidence: 3 new LocalCoopTest cases (21 total; the old 7-tile leash case replaced):
+Evidence: 3 new LocalCoopTest cases (20 total; the old 7-tile leash case replaced):
 party centre on screen centre with pad 1 off centre; guest NE then pad 1 SW in town
 until the screen (not a wall) stops them, both in view, then closing up works; no
-guests = upstream camera. Local Clang23 Debug ASan/UBSan: all 21 pass. Negative
+guests = upstream camera. Local Clang23 Debug ASan/UBSan: all 20 pass. Negative
 control (IsSharedCameraActive false): both camera cases fail, source restored.
 Render 1280x800: JARVIS data/diablo/shared-camera-render/ (spread party, no edge gaps).
 Limits: guest inventory panels still cover the left of the view; no zoom-out when
