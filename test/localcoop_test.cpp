@@ -2,6 +2,7 @@
 
 #include <SDL.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -45,6 +46,7 @@
 #include "tables/spelldat.h"
 #include "utils/display.h"
 #include "utils/paths.h"
+#include "utils/ui_fwd.h"
 #include "utils/utf8.hpp"
 
 namespace devilution {
@@ -282,6 +284,8 @@ public:
 			forceResolution = { 1280, 800 };
 			init_create_window();
 			InitItemGFX();
+		} else {
+			AdjustToScreenGeometry({ 640, 480 }); // the camera needs a screen size
 		}
 
 		// One saved hero besides pad 1's (save 0), for the join panel to offer;
@@ -458,18 +462,83 @@ TEST_F(LocalCoopTest, EachPadMovesOnlyItsOwnHero)
 	EXPECT_EQ(guest.position.tile, guestStop);
 }
 
-TEST_F(LocalCoopTest, AGuestCannotWalkOffTheSharedScreen)
+// Where a hero's feet are drawn this frame, after the camera has recentred.
+Point ScreenOf(const Player &player)
+{
+	UpdateSharedCamera();
+	return GetScreenPosition(player.position.tile);
+}
+
+bool IsInView(Point screen)
+{
+	return screen.x >= 0 && screen.x < gnScreenWidth && screen.y >= 0 && screen.y < gnViewportHeight;
+}
+
+void HoldStick(VirtualPad &pad, int16_t x, int16_t y, int ticks)
+{
+	pad.Axis(SDL_CONTROLLER_AXIS_LEFTX, x);
+	pad.Axis(SDL_CONTROLLER_AXIS_LEFTY, y);
+	Tick(ticks);
+	pad.Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	pad.Axis(SDL_CONTROLLER_AXIS_LEFTY, 0);
+	Tick(20);
+}
+
+TEST_F(LocalCoopTest, TheCameraCentresOnThePartyNotOnPadOne)
+{
+	const Point centre = ScreenOf(*MyPlayer); // upstream: pad 1's hero at the centre
+	JoinGuest();
+	ASSERT_TRUE(IsSharedCameraActive());
+	Player &guest = Guest();
+	const Point guestStart = guest.position.tile;
+	HoldStick(*padB_, 32767, 0, 60);
+	ASSERT_GE(guest.position.tile.WalkingDistance(guestStart), 2);
+
+	const Point mine = ScreenOf(*MyPlayer);
+	const Point theirs = ScreenOf(guest);
+	const Point middle { (mine.x + theirs.x) / 2, (mine.y + theirs.y) / 2 };
+	EXPECT_LE(std::abs(middle.x - centre.x), TILE_WIDTH / 2) << "party centre on screen x";
+	EXPECT_LE(std::abs(middle.y - centre.y), TILE_HEIGHT / 2) << "party centre on screen y";
+	EXPECT_GT(std::abs(mine.x - centre.x) + std::abs(mine.y - centre.y), TILE_WIDTH / 2) << "pad 1 is off centre";
+	Snapshot("05-shared-camera-centres-on-both");
+}
+
+TEST_F(LocalCoopTest, NoHeroCanWalkOffTheSharedScreen)
 {
 	JoinGuest();
-	EnterDungeon();
 	Player &guest = Guest();
-	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
-	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTY, 32767);
-	Tick(400);
-	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
-	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTY, 0);
-	Tick(20);
-	EXPECT_LE(guest.position.tile.WalkingDistance(MyPlayer->position.tile), 7);
+	// From the town start the open ground runs up-right and down-left: the
+	// guest runs up-right as far as it can, then pad 1 runs down-left until the
+	// screen (at 640x480, not a wall) holds it back.
+	HoldStick(*padB_, 32767, -32767, 400);
+	EXPECT_TRUE(IsInView(ScreenOf(guest)));
+	EXPECT_TRUE(IsInView(ScreenOf(*MyPlayer)));
+	const Point myStart = MyPlayer->position.tile;
+	HoldStick(*padA_, -32767, 32767, 400);
+	EXPECT_NE(MyPlayer->position.tile, myStart);
+	const Point mine = ScreenOf(*MyPlayer);
+	const Point theirs = ScreenOf(guest);
+	EXPECT_TRUE(IsInView(mine)) << mine.x << "," << mine.y;
+	EXPECT_TRUE(IsInView(theirs)) << theirs.x << "," << theirs.y;
+	EXPECT_GE(theirs.x - mine.x, 8 * TILE_WIDTH / 2) << "further apart than the old 7-tile leash";
+	if (RenderDir.empty()) {
+		EXPECT_FALSE(SharedCameraAllowsStep(guest, guest.position.future + Direction::NorthEast));
+		EXPECT_FALSE(SharedCameraAllowsStep(*MyPlayer, MyPlayer->position.future + Direction::SouthWest));
+		EXPECT_TRUE(IsTileNotSolid(MyPlayer->position.future + Direction::SouthWest)) << "the screen stopped pad 1, not a wall";
+	}
+	Snapshot("06-shared-camera-party-spread-out");
+
+	// Closing up is always allowed.
+	const Point guestStop = guest.position.tile;
+	HoldStick(*padB_, -32767, 32767, 40);
+	EXPECT_NE(guest.position.tile, guestStop);
+}
+
+TEST_F(LocalCoopTest, WithoutGuestsTheCameraIsUpstreams)
+{
+	EXPECT_FALSE(IsSharedCameraActive());
+	ASSERT_TRUE(WalkPadOne(*padA_));
+	EXPECT_EQ(ViewPosition, MyPlayer->position.tile);
 }
 
 TEST_F(LocalCoopTest, HeldGuestButtonsNeverReachPadOne)

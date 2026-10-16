@@ -1,3 +1,27 @@
+# Shared camera — 2026-10-16
+
+Roadmap item diablo-shared-camera (branch `shared-camera`). With guests in play
+`UpdateSharedCamera()` (called in DrawAndBlit before DrawView) centres the view on the
+bounding-box middle of every living hero on the level, drawn positions incl. walking
+offsets: ViewPosition = nearest tile, `SharedCameraOffset()` the pixel remainder,
+used by CalcFirstTilePosition and the mouse (AlterMousePositionViaPlayer) in place of
+MyPlayer's walking offset. While active the renderer starts one tile up/left and draws
+5 more rows / 3 more columns, so a remainder of up to a tile never shows an edge.
+`SharedCameraAllowsStep` in StartWalk (every local hero, pad 1 included) and in
+WalkGuest refuses a step that grows the party box past the screen room (window less
+2x64 px across, less 2x max(100, panel+16) px tall, /2 when zoomed); shrinking is
+always allowed. A refused step stands the hero and clears its path. Off while
+gbProcessPlayers is false (Diablo's death scene steers ViewPosition) and without guests
+(upstream path untouched). Headless tests now set a 640x480 screen geometry.
+Evidence: 3 new LocalCoopTest cases (21 total; the old 7-tile leash case replaced):
+party centre on screen centre with pad 1 off centre; guest NE then pad 1 SW in town
+until the screen (not a wall) stops them, both in view, then closing up works; no
+guests = upstream camera. Local Clang23 Debug ASan/UBSan: all 21 pass. Negative
+control (IsSharedCameraActive false): both camera cases fail, source restored.
+Render 1280x800: JARVIS data/diablo/shared-camera-render/ (spread party, no edge gaps).
+Limits: guest inventory panels still cover the left of the view; no zoom-out when
+the party spreads.
+
 # Controller lobby — 2026-10-16
 
 Roadmap item diablo-controller-lobby (branch `controller-lobby`, source aabaf327c).

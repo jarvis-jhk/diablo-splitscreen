@@ -1181,7 +1181,10 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
 	// Adjust by player offset and tile grid alignment
 	const Player &myPlayer = *MyPlayer;
 	offset = tileOffset;
-	if (myPlayer.isWalking())
+	const bool sharedCamera = IsSharedCameraActive();
+	if (sharedCamera)
+		offset += SharedCameraOffset();
+	else if (myPlayer.isWalking())
 		offset += GetOffsetForWalking(myPlayer.AnimInfo, myPlayer._pdir, true);
 
 	position += tileShift;
@@ -1199,7 +1202,14 @@ void CalcFirstTilePosition(Point &position, Displacement &offset)
 	}
 
 	// Draw areas moving in and out of the screen
-	if (myPlayer.isWalking()) {
+	if (sharedCamera) {
+		// The party centre can sit up to a tile off ViewPosition in any
+		// direction: start a tile up and left, DrawGame adds rows/columns.
+		offset.deltaY -= TILE_HEIGHT;
+		offset.deltaX -= TILE_WIDTH;
+		position += Direction::North;
+		position += Direction::West;
+	} else if (myPlayer.isWalking()) {
 		switch (myPlayer._pdir) {
 		case Direction::North:
 		case Direction::NorthEast:
@@ -1245,7 +1255,10 @@ void DrawGame(const Surface &fullOut, Point position, Displacement offset)
 	UpdateMissilesRendererData();
 
 	// Draw areas moving in and out of the screen
-	if (MyPlayer->isWalking()) {
+	if (IsSharedCameraActive()) {
+		rows += 5;
+		columns += 3;
+	} else if (MyPlayer->isWalking()) {
 		switch (MyPlayer->_pdir) {
 		case Direction::NoDirection:
 			break;
@@ -1871,6 +1884,7 @@ void DrawAndBlit()
 	nthread_UpdateProgressToNextGameTick();
 
 	this_sdl_thread::yield();
+	UpdateSharedCamera();
 	DrawView(out, ViewPosition);
 	if (drawCtrlPan) {
 		DrawMainPanel(out);

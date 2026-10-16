@@ -39,8 +39,11 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   (2026-10-16: in-game join panel picks a saved hero not in play or a new hero of any
   playable class; Start on a guest pad leaves; seats P2-P4 stay fixed. New heroes get
   seat names, no typed name; physical pads still Jan's test).
-- [ ] Shared camera for one to four characters; readable personal HUD and simultaneous
+- [x] Shared camera for one to four characters; readable personal HUD and simultaneous
   inventory/menu overlays at Deck resolution, with adequate visible gameplay area.
+  (2026-10-16: camera centres on all living heroes; no hero, pad 1 included, can step
+  off the screen; replaces the 7-tile guest leash. Guest panels still cover the left
+  side of the view while open; physical pads/Deck still Jan's test.)
 - [ ] Independent targeting, spells, belt, merchants, dialogue and death/revival; explicit
   party level-travel behavior that cannot silently discard a personal transaction.
 - [ ] Stable offline local co-op using upstream protocol/world behavior; no internet dependency.
