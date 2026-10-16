@@ -665,20 +665,55 @@ TEST_F(LocalCoopTest, GuestFollowsPadOneToTheNextLevel)
 	EXPECT_EQ(dPlayer[guest.position.tile.x][guest.position.tile.y], guest.getId() + 1);
 }
 
-TEST_F(LocalCoopTest, UnpluggingTheGuestPadRemovesOnlyTheGuest)
+TEST_F(LocalCoopTest, AnUnpluggedGuestStandsAndStartOnAPadTakesItsSeatBack)
 {
 	JoinGuest();
-	EnterDungeon();
-	const uint8_t guestId = Guest().getId();
-	padB_->Button(SDL_CONTROLLER_BUTTON_A, true);
-	Tick();
-	padB_->Unplug();
-	Tick(3);
-	EXPECT_EQ(LocalGuestCount(), 0u);
-	EXPECT_FALSE(Players[guestId].plractive);
-	EXPECT_TRUE(MyPlayer->plractive);
+	Player &guest = Guest();
+	const uint8_t guestId = guest.getId();
+	const Point guestStart = guest.position.tile;
 
-	EXPECT_TRUE(WalkPadOne(*padA_));
+	// Unplugged mid-walk with A held: the hero stays in the game and stands.
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 32767);
+	padB_->Button(SDL_CONTROLLER_BUTTON_A, true);
+	ASSERT_TRUE(TickUntil([&] { return guest.position.tile != guestStart; }, 60));
+	const SDL_JoystickID oldPad = padB_->id();
+	padB_->Unplug();
+	Tick(30);
+	EXPECT_EQ(LocalGuestCount(), 1u);
+	EXPECT_TRUE(guest.plractive);
+	EXPECT_TRUE(IsLocalGuestWaitingForPad(guest));
+	EXPECT_FALSE(IsControllerDeviceClaimed(oldPad));
+	EXPECT_EQ(guest._pmode, PM_STAND);
+	EXPECT_EQ(guest.walkpath[0], WALK_NONE);
+	const Point standing = guest.position.tile;
+	Snapshot("22-guest-pad-unplugged");
+
+	// Pad 1 plays on; the waiting hero does not move.
+	ASSERT_TRUE(WalkPadOne(*padA_));
+	EXPECT_EQ(guest.position.tile, standing);
+
+	// The pad comes back with a new SDL instance id, like any free pad.
+	// Start gives it the waiting seat, not the join panel.
+	padB_.emplace();
+	Tick();
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	EXPECT_FALSE(IsLocalJoinPending(padB_->id()));
+	EXPECT_EQ(LocalGuestOnDevice(padB_->id()), guestId);
+	EXPECT_FALSE(IsLocalGuestWaitingForPad(guest));
+	EXPECT_TRUE(IsControllerDeviceClaimed(padB_->id()));
+	EXPECT_FALSE(IsLocalGuestLeaveMenuOpen(padB_->id()));
+	EXPECT_FALSE(gmenu_is_active());
+	EXPECT_EQ(LocalGuestCount(), 1u);
+	// Nothing the old pad held carries over.
+	Tick(30);
+	EXPECT_EQ(guest.position.tile, standing);
+	EXPECT_EQ(guest._pmode, PM_STAND);
+
+	// The same hero walks with the new pad again.
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, -32767);
+	EXPECT_TRUE(TickUntil([&] { return guest.position.tile != standing; }, 60));
+	padB_->Axis(SDL_CONTROLLER_AXIS_LEFTX, 0);
+	Tick(20);
 }
 
 // ---- Personal inventories ----------------------------------------------
@@ -956,10 +991,12 @@ TEST_F(LocalCoopTest, ASavedHeroInPlayIsNotOfferedToTheNextPad)
 	EXPECT_EQ(LocalJoinChoices(padC.id()), expected);
 	Press(padC, SDL_CONTROLLER_BUTTON_A);
 	ASSERT_EQ(LocalGuestCount(), 2u);
-	EXPECT_STREQ(Players[LocalGuestOnDevice(padC.id())]._pName, "Player 3");
+	const Player &third = Players[LocalGuestOnDevice(padC.id())];
+	EXPECT_STREQ(third._pName, "Player 3");
 	padC.Unplug();
 	Tick(3);
-	EXPECT_EQ(LocalGuestCount(), 1u);
+	EXPECT_EQ(LocalGuestCount(), 2u);
+	EXPECT_TRUE(IsLocalGuestWaitingForPad(third));
 }
 
 TEST_F(LocalCoopTest, StartThenALetsAGuestLeaveAndFreesItsHero)
