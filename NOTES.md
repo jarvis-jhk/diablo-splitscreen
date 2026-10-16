@@ -51,7 +51,10 @@ after narrowing, a missing-data start posts nothing. Guest pickups no
 longer close pad 1's gold dialog.
 Release path: .github/workflows/fork-prerelease.yml (exact revision, Linux tar.xz +
 Windows zip, SHA256SUMS verified, GitHub prerelease with docs/release-notes/v<version>.md).
-Prerelease v0.1.0 is built by fork-prerelease.yml from 912ba8252. Open human test: real
+Prerelease v0.1.0 published from 912ba8252 (run 38895860946):
+https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.0 — every asset downloaded,
+GitHub digests and SHA256SUMS match, contents checked, no game data. Linux needs glibc 2.38+.
+Warpzone descriptor fixed for this release: jarvis-jhk/warpzone PR6. Open human test: real
 pads and the Steam Deck (two controllers, guest join, inventory while the other fights).
 Next roadmap item: Personal inventories.
 
