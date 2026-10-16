@@ -57,17 +57,27 @@ jobs:
       - name: Package
         run: |
           set -euo pipefail
+          # The archive is versioned, the folder inside is not, so launchers
+          # (Warpzone) can point at diablo-splitscreen/diablo-splitscreen.sh.
           name=diablo-splitscreen-v${{ inputs.version }}-linux-x86_64
-          mkdir -p "$name/mods"
-          cp build/devilutionx build/devilutionx.mpq "$name/"
-          cp build/mods/hf.mpq "$name/mods/" || true
-          cp LICENSE.md docs/LOCAL-COOP.md Packaging/resources/LICENSE.CC-BY.txt Packaging/resources/LICENSE.OFL.txt "$name/"
-          cat > "$name/diablo-splitscreen.sh" <<'SH'
+          dir=diablo-splitscreen
+          # The AppImage bundles SDL2/SDL2_image and friends for systems (Steam
+          # Deck) that lack them, plus devilutionx.mpq.
+          Packaging/nix/AppImage.sh build
+          mkdir -p "$dir"
+          mv devilutionx.appimage "$dir/devilutionx.AppImage"
+          chmod +x "$dir/devilutionx.AppImage"
+          cp LICENSE.md docs/LOCAL-COOP.md Packaging/resources/LICENSE.CC-BY.txt Packaging/resources/LICENSE.OFL.txt "$dir/"
+          cat > "$dir/diablo-splitscreen.sh" <<'SH'
           #!/bin/sh
           # Starts the game; reports an anonymous crash (version, platform, signal) afterwards.
           # DEVILUTIONX_NO_REPORT=1 turns reporting off.
           BASEDIR="$(dirname "$(realpath "$0")")"
-          "$BASEDIR/devilutionx" "$@"
+          if [ -e /dev/fuse ]; then
+            "$BASEDIR/devilutionx.AppImage" "$@"
+          else
+            "$BASEDIR/devilutionx.AppImage" --appimage-extract-and-run "$@"
+          fi
           rc=$?
           if [ "$rc" -gt 128 ] && [ "$DEVILUTIONX_NO_REPORT" != "1" ]; then
             (curl -fsS --max-time 8 -o /dev/null -d "Diablo Splitscreen VERSION Linux crash signal $((rc - 128))" \
@@ -75,24 +85,15 @@ jobs:
           fi
           exit "$rc"
           SH
-          sed -i "s/VERSION Linux/${{ inputs.version }} Linux/" "$name/diablo-splitscreen.sh"
-          chmod +x "$name/diablo-splitscreen.sh" "$name/devilutionx"
-          tar -cJf "$name.tar.xz" "$name"
-          sha256sum "$name.tar.xz" > "$name.tar.xz.sha256"
-          ./"$name"/devilutionx --version
-          # The AppImage bundles SDL2/SDL2_image and friends for systems (Steam Deck)
-          # that lack them; it reports fatal errors from inside the game only.
-          Packaging/nix/AppImage.sh build
-          mv devilutionx.appimage "$name.AppImage"
-          chmod +x "$name.AppImage"
-          sha256sum "$name.AppImage" > "$name.AppImage.sha256"
-          ./"$name.AppImage" --appimage-extract-and-run --version
+          sed -i "s/VERSION Linux/${{ inputs.version }} Linux/" "$dir/diablo-splitscreen.sh"
+          chmod +x "$dir/diablo-splitscreen.sh"
+          tar -czf "$name.tar.gz" "$dir"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          "$dir/devilutionx.AppImage" --appimage-extract-and-run --version
       - uses: actions/upload-artifact@v7
         with:
           name: linux
-          path: |
-            diablo-splitscreen-v*-linux-x86_64.tar.xz*
-            diablo-splitscreen-v*-linux-x86_64.AppImage*
+          path: diablo-splitscreen-v*-linux-x86_64.tar.gz*
 
   windows:
     runs-on: windows-latest
@@ -119,7 +120,8 @@ jobs:
         run: cmake --build --preset ninja-vcpkg-relwithdebinfo --parallel 2 --target devilutionx
       - name: Package
         run: |
-          $name = 'diablo-splitscreen-v${{ inputs.version }}-windows-x64'
+          $zip = 'diablo-splitscreen-v${{ inputs.version }}-windows-x64'
+          $name = 'diablo-splitscreen'
           $b = 'build-ninja-vcpkg-relwithdebinfo'
           New-Item -ItemType Directory -Force "$name/mods" | Out-Null
           Copy-Item "$b/devilutionx.exe" $name
@@ -128,9 +130,9 @@ jobs:
           if (Test-Path "$b/devilutionx.mpq") { Copy-Item "$b/devilutionx.mpq" $name } else { Copy-Item -Recurse "$b/assets" "$name/assets" }
           if (Test-Path "$b/mods") { Copy-Item -Recurse -Force "$b/mods/*" "$name/mods/" }
           Copy-Item LICENSE.md, docs/LOCAL-COOP.md, Packaging/resources/LICENSE.CC-BY.txt, Packaging/resources/LICENSE.OFL.txt $name
-          Compress-Archive -Path $name -DestinationPath "$name.zip"
-          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
-          Set-Content -NoNewline -Path "$name.zip.sha256" -Value "$hash  $name.zip`n"
+          Compress-Archive -Path $name -DestinationPath "$zip.zip"
+          $hash = (Get-FileHash "$zip.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -NoNewline -Path "$zip.zip.sha256" -Value "$hash  $zip.zip`n"
           Get-ChildItem $name
       - uses: actions/upload-artifact@v7
         with:
@@ -164,4 +166,4 @@ jobs:
           cd dist
           gh release create "v${{ inputs.version }}" --repo "$GITHUB_REPOSITORY" --prerelease \
             --target "${{ inputs.revision }}" --title "Diablo Splitscreen v${{ inputs.version }} (test build)" \
-            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.xz *.AppImage *.zip SHA256SUMS
+            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.gz *.zip SHA256SUMS
