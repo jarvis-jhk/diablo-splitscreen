@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <array>
+#include <climits>
+#include <cmath>
 #include <cstring>
 #include <optional>
 #include <string>
@@ -18,15 +20,18 @@
 #include "controls/devices/joystick.h"
 #include "control/control.hpp"
 #include "cursor.h"
+#include "diablo.h"
 #include "engine/assets.hpp"
 #include "engine/point.hpp"
 #include "engine/render/clx_render.hpp"
+#include "engine/render/scrollrt.h"
 #include "engine/render/primitive_render.hpp"
 #include "engine/render/text_render.hpp"
 #include "engine/surface.hpp"
 #include "game_mode.hpp"
 #include "inv.h"
 #include "items.h"
+#include "levels/dun_tile.hpp"
 #include "levels/dun_tile_data.hpp"
 #include "levels/gendung.h"
 #include "levels/tile_properties.hpp"
@@ -43,6 +48,7 @@
 #include "tables/playerdat.hpp"
 #include "tables/spelldat.h"
 #include "utils/endian_swap.hpp"
+#include "utils/ui_fwd.h"
 #include "utils/language.h"
 #include "utils/str_cat.hpp"
 #include "utils/utf8.hpp"
@@ -51,9 +57,6 @@ namespace devilution {
 
 namespace {
 
-// How far (in tiles) a guest may walk away from MyPlayer: the camera still
-// follows pad 1, so this keeps every hero on the shared screen.
-constexpr int LeashDistance = 7;
 constexpr float StickDeadzone = 0.35F;
 
 struct Guest {
@@ -487,10 +490,7 @@ void WalkGuest(Guest &guest, AxisDirection axis)
 	if (!player.isWalking() && player.CanChangeAction())
 		player._pdir = dir;
 
-	const Point anchor = MyPlayer->position.future;
-	const int distance = player.position.future.WalkingDistance(anchor);
-	const bool leavesLeash = step.WalkingDistance(anchor) > LeashDistance && step.WalkingDistance(anchor) > distance;
-	if (leavesLeash || (PosOkPlayer(player, step) && IsPathBlockedFor(player, player.position.future, dir))) {
+	if (!SharedCameraAllowsStep(player, step) || (PosOkPlayer(player, step) && IsPathBlockedFor(player, player.position.future, dir))) {
 		if (player._pmode == PM_STAND)
 			StartStand(player, dir);
 		return;
@@ -1056,6 +1056,62 @@ void DrawGuestInventory(const Surface &out, const Guest &guest, size_t seat)
 	    { .flags = UiFlags::AlignCenter | UiFlags::FontSize12 | UiFlags::ColorWhite });
 }
 
+
+// Shared camera. Positions are world pixels of a hero's feet, the way the
+// renderer places tiles: x grows with (tile.x - tile.y), y with (tile.x + tile.y).
+Point TilePixel(Point tile)
+{
+	return { (tile.x - tile.y) * TILE_WIDTH / 2, (tile.x + tile.y) * TILE_HEIGHT / 2 };
+}
+
+bool IsOnSharedScreen(const Player &player)
+{
+	return player.plractive && player.isOnActiveLevel() && !player.hasNoLife() && player._pmode != PM_DEATH;
+}
+
+// Every hero the camera keeps in view: MyPlayer and the guests, alive and on this level.
+std::vector<const Player *> ScreenHeroes()
+{
+	std::vector<const Player *> heroes;
+	if (IsOnSharedScreen(*MyPlayer))
+		heroes.push_back(MyPlayer);
+	for (const Guest &guest : Guests) {
+		const Player &player = Players[guest.playerId];
+		if (IsOnSharedScreen(player))
+			heroes.push_back(&player);
+	}
+	return heroes;
+}
+
+struct PixelBox {
+	Point min;
+	Point max;
+	void add(Point p)
+	{
+		min = { std::min(min.x, p.x), std::min(min.y, p.y) };
+		max = { std::max(max.x, p.x), std::max(max.y, p.y) };
+	}
+	int width() const { return max.x - min.x; }
+	int height() const { return max.y - min.y; }
+};
+
+// How far apart the party's feet may be, in world pixels. The party's middle
+// is the screen's middle; every hero keeps a sprite's width from the sides, a
+// sprite's height (about 100 px) from the top and clears the control panel at
+// the bottom.
+Size SharedCameraRoom()
+{
+	const int zoom = *GetOptions().Graphics.zoom ? 2 : 1;
+	const int width = gnScreenWidth > 0 ? gnScreenWidth : 640;
+	const int height = gnScreenHeight > 0 ? gnScreenHeight : 480;
+	const int vertical = std::max(100, GetMainPanel().size.height + TILE_HEIGHT / 2);
+	return { std::max(width - 2 * TILE_WIDTH, TILE_WIDTH) / zoom,
+		std::max(height - 2 * vertical, TILE_HEIGHT) / zoom };
+}
+
+// The camera's centre in world pixels, set once per frame by UpdateSharedCamera.
+Point CameraFocus;
+
 } // namespace
 
 bool IsLocalCoopAvailable()
@@ -1554,6 +1610,55 @@ void DrawLocalCoopHud(const Surface &out)
 	}
 	for (const Joiner &joiner : Joiners)
 		y = DrawJoinPanel(out, joiner, y + 4);
+}
+
+
+bool IsSharedCameraActive()
+{
+	// Diablo's death scene steers ViewPosition itself and stops the players.
+	return !Guests.empty() && MyPlayer != nullptr && gbProcessPlayers;
+}
+
+void UpdateSharedCamera()
+{
+	if (!IsSharedCameraActive())
+		return;
+	const std::vector<const Player *> heroes = ScreenHeroes();
+	if (heroes.empty())
+		return;
+	PixelBox box { { INT_MAX, INT_MAX }, { INT_MIN, INT_MIN } };
+	for (const Player *player : heroes) {
+		Point feet = TilePixel(player->position.tile);
+		if (player->isWalking())
+			feet += GetOffsetForWalking(player->AnimInfo, player->_pdir);
+		box.add(feet);
+	}
+	CameraFocus = { (box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2 };
+	// The tile nearest to the focus; SharedCameraOffset covers the remainder.
+	const auto nearest = [](int numerator) { return static_cast<int>(std::lround(numerator / 64.0)); };
+	ViewPosition = { nearest(CameraFocus.x + 2 * CameraFocus.y), nearest(2 * CameraFocus.y - CameraFocus.x) };
+}
+
+Displacement SharedCameraOffset()
+{
+	return TilePixel(ViewPosition) - CameraFocus;
+}
+
+bool SharedCameraAllowsStep(const Player &player, Point to)
+{
+	if (!IsSharedCameraActive() || !IsLocalPlayer(player) || !IsOnSharedScreen(player))
+		return true;
+	PixelBox before { { INT_MAX, INT_MAX }, { INT_MIN, INT_MIN } };
+	PixelBox after = before;
+	for (const Player *hero : ScreenHeroes()) {
+		before.add(TilePixel(hero->position.future));
+		after.add(TilePixel(hero == &player ? to : Point { hero->position.future }));
+	}
+	// A party already wider than the screen (a smaller window, a level entry)
+	// may still close up; it only may not spread any further.
+	const Size room = SharedCameraRoom();
+	return (after.width() <= room.width || after.width() <= before.width())
+	    && (after.height() <= room.height || after.height() <= before.height());
 }
 
 } // namespace devilution

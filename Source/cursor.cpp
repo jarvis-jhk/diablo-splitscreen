@@ -34,6 +34,7 @@
 #include "hwcursor.hpp"
 #include "inv.h"
 #include "levels/trigs.h"
+#include "localcoop.hpp"
 #include "missiles.h"
 #include "options.h"
 #include "qol/itemlabels.h"
@@ -708,6 +709,13 @@ void AlterMousePositionViaPlayer(Point &screenPosition, const Player &myPlayer)
 	CalcTileOffset(&xo, &yo);
 	screenPosition.x += xo;
 	screenPosition.y += yo;
+
+	if (IsSharedCameraActive()) {
+		const Displacement offset = SharedCameraOffset();
+		screenPosition.x -= offset.deltaX;
+		screenPosition.y -= offset.deltaY;
+		return;
+	}
 
 	// Adjust for player walking
 	if (myPlayer.isWalking()) {

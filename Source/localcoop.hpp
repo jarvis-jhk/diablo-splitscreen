@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+#include "engine/displacement.hpp"
+#include "engine/point.hpp"
+
 #ifdef USE_SDL3
 #include <SDL3/SDL_events.h>
 #else
@@ -68,6 +71,20 @@ void MoveLocalGuestsToMyLevel();
 /** @brief Place guests beside MyPlayer after a level load. */
 void PlaceLocalGuestsAfterLevelLoad(bool keepPositions);
 void DrawLocalCoopHud(const Surface &out);
+
+// Shared camera: while guests play, the view centres on the middle of every
+// living hero on the level instead of on MyPlayer, and no hero may take a step
+// that would push the party wider than the screen.
+bool IsSharedCameraActive();
+/** @brief Recentre on the party; call once per frame before drawing. Sets ViewPosition. */
+void UpdateSharedCamera();
+/**
+ * @brief Screen offset from ViewPosition to the party centre, in the sign of a
+ * walking camera offset; used in place of MyPlayer's walking offset.
+ */
+Displacement SharedCameraOffset();
+/** @brief False if a local hero stepping to that tile would leave the shared screen. */
+bool SharedCameraAllowsStep(const Player &player, Point to);
 
 // A guest's own inventory panel: Back opens and closes it on the guest's pad.
 bool IsGuestInventoryOpen(const Player &player);

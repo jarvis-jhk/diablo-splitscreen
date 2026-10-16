@@ -161,6 +161,14 @@ void StartWalk(Player &player, Direction dir, bool pmWillBeCalled)
 		return;
 	}
 
+	// A step off the shared screen is refused like a blocked tile; the rest of
+	// the path is dropped, since its later steps assumed this one.
+	if (!SharedCameraAllowsStep(player, player.position.tile + dir)) {
+		ClrPlrPath(player);
+		StartStand(player, dir);
+		return;
+	}
+
 	StartWalkAnimation(player, dir, pmWillBeCalled);
 	HandleWalkMode(player, dir);
 }

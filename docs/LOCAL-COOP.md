@@ -57,6 +57,17 @@ open the guest's hero stands still; the stick steers the cursor instead.
 The guest's life, mana and selected spell are shown at the top of the screen.
 Unplugging the guest's controller removes the guest; pad 1 keeps playing.
 
+## Shared camera
+
+With a guest in play the camera centres on the middle of every living hero on the
+level, not on pad 1. Any hero, pad 1 included, may walk as far as the screen allows;
+a step that would push the party wider or taller than the screen is refused like a
+step into a wall (the hero stands, a mouse path is dropped). Walking back towards the
+others is always allowed. The room is the window less a sprite's width at the sides,
+a sprite's height at the top and the control panel at the bottom; at 1280x800 that is
+about 18 tiles across. Fallen heroes do not count. Without guests the camera is
+upstream's, unchanged.
+
 ## What is isolated
 
 - The guest's pad is claimed: none of its buttons, sticks or triggers reach pad 1
@@ -71,7 +82,6 @@ Unplugging the guest's controller removes the guest; pad 1 keeps playing.
 
 - **Guests are not saved.** A guest plays a copy of a saved hero; nothing it
   gains is written back. Your save files are never touched by a guest.
-- The camera follows pad 1; a guest cannot walk more than 7 tiles away from pad 1.
 - Guests have their own inventory, but no character sheet, spellbook, merchant
   or dialogue yet, and cannot spend stat points. Cursor spells and scrolls
   (identify, repair, telekinesis, town portal, golem, ...) and oils are pad 1 only.
