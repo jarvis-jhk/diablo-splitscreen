@@ -22,7 +22,12 @@ pagination skips, all 14 LocalCoopTest cases on both; logged HEAD and artifact d
 verified (JARVIS data/diablo/personal-inv-native/). Merge adds only Markdown/release notes.
 Limits: no gold split, no cursor scrolls/oils, pad 1's class art behind guest panels,
 mouse ignores guest panels, no character sheet/spellbook/shop for guests yet.
+Prerelease v0.1.1 published from merge 2ea8370f5 (fork-prerelease.yml):
+https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.1 — assets downloaded,
+GitHub digests and SHA256SUMS match, packaged LOCAL-COOP.md has the inventory section, no
+game data. Warpzone descriptor is pattern-based (PR6 still open), no change needed.
 Open human test: real pads and the Deck (both inventories open on the couch).
+Next: guest spell selection/character sheet/merchants (ROADMAP M0 personal menus).
 
 # Current state — 2026-10-16
 
