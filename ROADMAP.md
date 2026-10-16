@@ -49,6 +49,8 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 - [ ] Stable offline local co-op using upstream protocol/world behavior; no internet dependency.
 - [ ] Full Diablo quest/progression coverage and ending, difficulty progression, loot and saves.
 - [ ] Controller disconnect/reconnect, held-input release, replacement and slot reuse.
+  (2026-10-16: an unplugged guest stays and stands; Start on any free pad takes the seat
+  back with nothing held. Pad 1 disconnect is upstream behaviour; physical pads untested.)
 - [ ] Save/reload and migrations across game/update versions; protect original saves.
 - [ ] One-player compatibility and keyboard accessibility; no regression of normal gameplay.
 

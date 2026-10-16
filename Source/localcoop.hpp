@@ -36,6 +36,8 @@ constexpr size_t MaxLocalGuests = 3;
 bool IsLocalCoopAvailable();
 size_t LocalGuestCount();
 bool IsLocalGuest(const Player &player);
+/** @brief The guest's pad was unplugged; its hero stands until Start on a free pad. */
+bool IsLocalGuestWaitingForPad(const Player &player);
 /** @brief MyPlayer, or a guest played on this machine. */
 bool IsLocalPlayer(const Player &player);
 /** @brief Player id of the guest on a device, or -1. */

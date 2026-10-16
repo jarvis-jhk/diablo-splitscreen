@@ -61,6 +61,8 @@ constexpr float StickDeadzone = 0.35F;
 
 struct Guest {
 	uint8_t playerId;
+	// -1 while the guest's pad is unplugged: the hero stays in the game,
+	// standing, until Start on a free pad takes the seat back.
 	SDL_JoystickID device;
 	std::optional<uint32_t> saveNumber;
 	// P2..P4 is seat 0..2. A seat is kept for as long as the guest plays, so
@@ -118,6 +120,8 @@ std::vector<PendingCommand> PendingCommands;
 
 Guest *FindGuest(SDL_JoystickID device)
 {
+	if (device == -1)
+		return nullptr;
 	for (Guest &guest : Guests) {
 		if (guest.device == device)
 			return &guest;
@@ -980,6 +984,27 @@ void SetGuestInventoryOpen(Guest &guest, bool open)
 		StopGuest(guest);
 }
 
+// The pad is gone: release everything it held and keep the hero standing.
+void DisconnectGuest(Guest &guest)
+{
+	SetGuestInventoryOpen(guest, false);
+	StopGuest(guest);
+	guest.leaveConfirm = false;
+	SetControllerDeviceClaimed(guest.device, false);
+	guest.device = -1;
+}
+
+// The guest waiting longest for a pad gets the lowest seat first.
+Guest *GuestWaitingForPad()
+{
+	Guest *waiting = nullptr;
+	for (Guest &guest : Guests) {
+		if (guest.device == -1 && (waiting == nullptr || guest.seat < waiting->seat))
+			waiting = &guest;
+	}
+	return waiting;
+}
+
 // Stick or d-pad: one step at once, then key-repeat while held.
 void UpdateGuestInventoryCursor(Guest &guest)
 {
@@ -1122,6 +1147,11 @@ bool IsLocalCoopAvailable()
 size_t LocalGuestCount()
 {
 	return Guests.size();
+}
+
+bool IsLocalGuestWaitingForPad(const Player &player)
+{
+	return std::any_of(Guests.begin(), Guests.end(), [&player](const Guest &g) { return g.playerId == player.getId() && g.device == -1; });
 }
 
 bool IsLocalGuest(const Player &player)
@@ -1349,6 +1379,15 @@ bool HandleLocalCoopEvent(const SDL_Event &event)
 				continue;
 			// The first pad pressed in a game is pad 1. Any other pad joins
 			// with Start; until then it still drives pad 1, as upstream.
+			// Start on a free pad first gives a guest whose pad was unplugged
+			// its seat back, even before pad 1 has pressed anything again.
+			if (ctrlEvent.button == ControllerButton_BUTTON_START && device != PrimaryDevice) {
+				if (Guest *waiting = GuestWaitingForPad(); waiting != nullptr) {
+					waiting->device = device;
+					SetControllerDeviceClaimed(device, true);
+					return true;
+				}
+			}
 			if (PrimaryDevice == -1 || !IsDeviceConnected(PrimaryDevice)) {
 				PrimaryDevice = device;
 				return false;
@@ -1430,10 +1469,8 @@ bool HandleLocalCoopEvent(const SDL_Event &event)
 void UpdateLocalGuests()
 {
 	for (size_t i = 0; i < Guests.size();) {
-		if (!IsDeviceConnected(Guests[i].device)) {
-			RemoveLocalGuest(Guests[i].device);
-			continue;
-		}
+		if (Guests[i].device != -1 && !IsDeviceConnected(Guests[i].device))
+			DisconnectGuest(Guests[i]);
 		i++;
 	}
 	for (size_t i = 0; i < Joiners.size();) {
@@ -1457,7 +1494,7 @@ void UpdateLocalGuests()
 			SetGuestInventoryOpen(guest, false);
 			continue;
 		}
-		if (guest.leaveConfirm)
+		if (guest.leaveConfirm || guest.device == -1)
 			continue;
 		if (guest.inventoryOpen) {
 			UpdateGuestInventoryCursor(guest);
@@ -1593,7 +1630,10 @@ void DrawLocalCoopHud(const Surface &out)
 		const std::string spellName = spell == SpellID::Invalid ? std::string(_("no spell")) : std::string(pgettext("spell", GetSpellData(spell).sNameText));
 		std::string text;
 		UiFlags color = player.hasNoLife() ? UiFlags::ColorRed : UiFlags::ColorWhite;
-		if (it->leaveConfirm) {
+		if (it->device == -1) {
+			text = FormatRuntime(_("P{:d} {:s}: pad disconnected  Start on a pad: play on"), seat + 2, player._pName);
+			color = UiFlags::ColorGold;
+		} else if (it->leaveConfirm) {
 			text = FormatRuntime(_("P{:d} {:s}: leave the game?  A: leave  B: stay"), seat + 2, player._pName);
 			color = UiFlags::ColorGold;
 		} else if (player.hasNoLife() || player._pmode == PM_DEATH) {

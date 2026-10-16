@@ -1,3 +1,27 @@
+# Pad hotplug — 2026-10-16
+
+Roadmap item diablo-pad-hotplug (branch `pad-hotplug`, source 3bc8841ad). A guest whose
+pad disconnects is no longer removed: `DisconnectGuest` closes its panel and leave
+question, stops its walk, clears held A, unclaims the device and sets `device = -1`.
+The hero stays in the game, standing (UpdateLocalGuests skips it), HUD line in gold
+"pad disconnected  Start on a pad: play on". Start on any pad that is not pad 1, a guest
+or a joiner gives the waiting guest with the lowest seat that pad (checked before the
+"first pad pressed is pad 1" rule, so it works even while pad 1 is unplugged too).
+A replugged pad gets a new SDL instance id, so "same pad back" and "another free pad" are
+one path. `FindGuest(-1)` never matches. `IsLocalGuestWaitingForPad(player)` for tests.
+Evidence: LocalCoopTest.AnUnpluggedGuestStandsAndStartOnAPadTakesItsSeatBack replaces the
+old "unplugging removes the guest" case (unplug mid-walk with A held → stands, waiting,
+device unclaimed; pad 1 walks; new pad Start → same player id, no join panel/leave
+question/game menu, nothing held for 30 ticks, then walks); ASavedHero case now expects the
+unplugged third guest to wait. Local Clang23 Debug ASan/UBSan: all 20 LocalCoop pass.
+Native gate run 38981833133 on 3bc8841ad: Linux 643 / Windows 617, 0 failures, the 2 known
+pagination skips, all 20 LocalCoopTest cases on both; logs in JARVIS data/diablo/hotplug2-native/.
+Render: data/diablo/pad-hotplug-render/ (gold "pad disconnected" line in town).
+Limits: a waiting hero can be hurt and still bounds the shared camera; if pad 1 and a
+guest pad are both unplugged, the first free pad's Start takes the guest seat (pad 1 is
+then the next pad to press anything else). Pad 1's own held-input release on disconnect is
+upstream behaviour, unchanged. Open human test: real pads/Deck.
+
 # Shared camera — 2026-10-16
 
 Roadmap item diablo-shared-camera (branch `shared-camera`). With guests in play

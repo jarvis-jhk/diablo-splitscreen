@@ -55,7 +55,13 @@ panel), the name of the selected item and these buttons. While the panel is
 open the guest's hero stands still; the stick steers the cursor instead.
 
 The guest's life, mana and selected spell are shown at the top of the screen.
-Unplugging the guest's controller removes the guest; pad 1 keeps playing.
+Unplugging a guest's controller does not remove the guest: the hero stops, stands
+where it is and its line at the top says "pad disconnected". Press **Start on any free
+controller** (the same one plugged back in, or another) to play on with that hero; nothing
+the old controller held carries over. While a hero waits for its controller, Start on a
+free pad takes that seat instead of opening the join panel (the lowest seat first). To
+leave for good, take the seat back and use Start, A. A waiting hero can still be hurt by
+monsters and follows pad 1 between levels. Pad 1 keeps playing throughout.
 
 ## Shared camera
 
