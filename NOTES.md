@@ -10,6 +10,9 @@ find the data. Once a release with this change is current, drop `copy_to`/`prese
 (on Windows `~/.local/share/...` is a pointless 500 MB copy). No `known` fingerprints: no
 DIABDAT here to hash, and a list with only spawn.mpq would flag every real DIABDAT as
 "unknown version"; the game's own loader validates.
+Native gate run 38915851244 on 7e4903944: Linux 637 / Windows 611, 0 failures, the 2 known
+pagination skips, both new LauncherDataSearchPathTest cases pass; logged HEAD checked (JARVIS
+data/diablo/warpzone-data/). Ships with the next prerelease.
 
 # Current state — 2026-10-16 (personal inventories)
 
