@@ -4,6 +4,22 @@ This is the first playable slice of couch co-op: a second controller plays its
 own hero in the same game, on the same screen, while pad 1 keeps every normal
 control. It is a proof, not the finished couch game; the limits below are real.
 
+## Installing on Linux and Steam Deck
+
+Download `Install-Diablo-Splitscreen.desktop` from a release and double-click it (on
+the Deck: in desktop mode), or run `bash install.sh` from the same release. The
+installer downloads that release's Linux build, checks it against the release's
+`SHA256SUMS`, installs it to `~/.local/share/diablo-splitscreen/versions/<version>` and
+switches `current` to it in one step; the version before is kept, older ones are
+removed. It adds a menu entry, offers to copy your own `DIABDAT.MPQ` (or `SPAWN.MPQ`) to
+`~/.local/share/diasurgical/devilution/` as the lower-case name the game expects
+(an existing file there is never replaced), and adds a Steam shortcut for Game Mode
+only while Steam is fully closed, keeping a backup of Steam's shortcut file. Saves,
+settings and MPQs are never touched. Running the installer of a newer release updates;
+the Steam shortcut keeps working. Without the installer, unpack the `.tar.gz` anywhere
+and run `diablo-splitscreen/diablo-splitscreen.sh`. The bundled AppImage needs glibc 2.38
+or newer (current SteamOS, Ubuntu 24.04).
+
 ## How to play
 
 1. Start **Multi Player → Offline**, create a game and pick pad 1's hero as usual.

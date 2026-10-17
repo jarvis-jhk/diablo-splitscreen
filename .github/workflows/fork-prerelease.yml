@@ -1,5 +1,6 @@
-# Builds a fork (pre)release from one exact commit: a Linux x86_64 tarball and a
-# Windows x64 zip, each with a SHA256SUMS file, published as a GitHub prerelease.
+# Builds a fork (pre)release from one exact commit: a Linux x86_64 tarball, its
+# installer (install.sh + a double-click .desktop for Steam Deck) and a Windows x64
+# zip, with one SHA256SUMS file, published as a GitHub prerelease.
 # Release builds carry the anonymous fault reporter (Source/fault_report.cpp).
 # No game data is ever packaged; players supply their own MPQs.
 name: Fork prerelease
@@ -68,6 +69,8 @@ jobs:
           mv devilutionx.appimage "$dir/devilutionx.AppImage"
           chmod +x "$dir/devilutionx.AppImage"
           cp LICENSE.md docs/LOCAL-COOP.md Packaging/resources/LICENSE.CC-BY.txt Packaging/resources/LICENSE.OFL.txt "$dir/"
+          # Used by install.sh after unpacking: Steam shortcut tool and menu/Steam icon.
+          cp Packaging/fork/linux/steam-shortcut.py Packaging/resources/icon.png "$dir/"
           cat > "$dir/diablo-splitscreen.sh" <<'SH'
           #!/bin/sh
           # Starts the game; reports an anonymous crash (version, platform, signal) afterwards.
@@ -89,11 +92,19 @@ jobs:
           chmod +x "$dir/diablo-splitscreen.sh"
           tar -czf "$name.tar.gz" "$dir"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          # The installer and its double-click starter fetch exactly this release.
+          for f in install.sh Install-Diablo-Splitscreen.desktop; do
+            sed "s/@TAG@/v${{ inputs.version }}/g" "Packaging/fork/linux/$f" > "$f"
+            sha256sum "$f" > "$f.sha256"
+          done
           "$dir/devilutionx.AppImage" --appimage-extract-and-run --version
       - uses: actions/upload-artifact@v7
         with:
           name: linux
-          path: diablo-splitscreen-v*-linux-x86_64.tar.gz*
+          path: |
+            diablo-splitscreen-v*-linux-x86_64.tar.gz*
+            install.sh*
+            Install-Diablo-Splitscreen.desktop*
 
   windows:
     runs-on: windows-latest
@@ -157,6 +168,12 @@ jobs:
           for f in *.sha256; do sha256sum -c "$f"; done
           cat *.sha256 > SHA256SUMS
           ls -la
+      - name: Install the Linux build with the release's own installer
+        run: |
+          set -euo pipefail
+          grep -q 'END OF DIABLO SPLITSCREEN INSTALLER' dist/install.sh
+          grep -q "releases/download/v${{ inputs.version }}/install.sh" dist/Install-Diablo-Splitscreen.desktop
+          bash Packaging/fork/tests/test-linux-installer.sh dist ${{ inputs.version }}
       - name: Publish the prerelease
         if: inputs.publish
         env:
@@ -166,4 +183,4 @@ jobs:
           cd dist
           gh release create "v${{ inputs.version }}" --repo "$GITHUB_REPOSITORY" --prerelease \
             --target "${{ inputs.revision }}" --title "Diablo Splitscreen v${{ inputs.version }} (test build)" \
-            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.gz *.zip SHA256SUMS
+            --notes-file "../docs/release-notes/v${{ inputs.version }}.md" *.tar.gz *.zip install.sh Install-Diablo-Splitscreen.desktop SHA256SUMS

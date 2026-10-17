@@ -1,3 +1,33 @@
+# Linux/Steam Deck installer — 2026-10-17
+
+Roadmap item diablo-builds-installer (branch `linux-installer`, source 6921c4838).
+Packaging/fork/linux/install.sh (tag substituted into the release asset) downloads the
+same release's tarball + SHA256SUMS, refuses a mismatch, unpacks into
+~/.local/share/diablo-splitscreen/versions/.<tag>.partial, renames it to versions/<tag>
+and switches the relative `current` symlink with `mv -T` (atomic). Previous version kept,
+others pruned. Menu entry ~/.local/share/applications/diablo-splitscreen.desktop. MPQ:
+if neither diabdat.mpq nor spawn.mpq is in the SDL pref path (~/.local/share/diasurgical/
+devilution, unchanged), it offers a file picker and copies the chosen DIABDAT/SPAWN.MPQ
+under the lower-case name (Linux lookup is case-sensitive), `mv -n`, never replacing.
+Steam: steam-shortcut.py (own code, in the tarball) parses shortcuts.vdf fully, refuses
+any file that does not round-trip byte for byte, adds one entry per Steam user whose Exe
+is current/diablo-splitscreen/diablo-splitscreen.sh (so updates keep it valid), refuses
+while `pgrep -x steam` finds Steam (checked again before the atomic replace), keeps the
+first original as shortcuts.vdf.diablo-splitscreen-backup. Installer failures post a fixed
+stage name to the existing ntfy fault topic. Install-Diablo-Splitscreen.desktop is the
+double-click starter (same pattern as gtetrinet-ng's, which Jan used on the Deck).
+Evidence: Packaging/fork/tests/test-linux-installer.sh (throwaway HOME, stub pgrep):
+16 checks with fake releases (Steam running → no edit; shortcut once, other game kept,
+backup = original; checksum refusal leaves current; update keeps previous/prunes older;
+MPQ lower-case and never overwritten; save untouched) plus, given a dist dir, the real
+release. Negative controls: checksum check removed → "checksum mismatch refused" fails;
+Steam guards removed → "no shortcut while Steam runs" fails. Locally against v0.1.5's
+real tarball the install works; its AppImage cannot run in the JARVIS container (glibc
+2.36 < 2.38 required — upstream builds on ubuntu-24.04 too; the release text says so).
+The prerelease workflow now ships install.sh + the .desktop (in SHA256SUMS) and runs the
+test against the real dist in the publish job before publishing.
+Open: Windows installer/Play launcher, physical Deck run, auto-update (separate item).
+
 # Guest saves — 2026-10-17
 
 Roadmap item diablo-quests-saves (branch `guest-saves`, source 560500ed1). Done when: guest
