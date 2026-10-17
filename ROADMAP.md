@@ -73,6 +73,11 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   listing release assets, launch path and the DIABDAT.MPQ/spawn.mpq data entry; keep it
   in step with each release. A future own updater stays silent in a `.warpzone-managed`
   install. No chat or free-text player content.
+- [ ] Report faults through Warpzone feedback (request t_mvc433sf2lckk, 2026-10-17): app_fatal/
+  ErrDlg via wz_report or tier-0 POST /api/v1/feedback (game diablo-splitscreen), Linux/Windows
+  crash file sent on next start; stable titles, no personal data, never blocks. Blocked until
+  libwarpzone 0.1.3 is released and the server answers the endpoint (404 on 2026-10-17). Keep
+  the ntfy relay until the Warpzone path is verified.
 
 ## M3 — hardware and maintenance
 
