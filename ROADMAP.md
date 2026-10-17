@@ -60,6 +60,10 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 
 - [ ] Fork-branded Linux portable build and Windows ZIP/installer with checksummed manifests.
 - [ ] Steam Deck installer and Steam shortcut: idempotent, no edits while Steam is running.
+  (2026-10-17: install.sh + double-click .desktop release assets; checksum-verified,
+  versioned atomic install, previous kept, menu entry, MPQ copy offer, Steam shortcut only
+  with Steam closed and a backup; scripted test against the real artifacts in CI. Physical
+  Deck run still Jan's test.)
 - [ ] Automatic background update check, safe versioned install at next launch, rollback on
   failed health check; never overwrite MPQs, saves or configuration. Windows parity required.
 - [ ] Startup changelog once per installed version, controller-readable and dismissible.
