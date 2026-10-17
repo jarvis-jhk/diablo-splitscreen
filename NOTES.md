@@ -17,6 +17,10 @@ unplugged third guest to wait. Local Clang23 Debug ASan/UBSan: all 20 LocalCoop 
 Native gate run 38981833133 on 3bc8841ad: Linux 643 / Windows 617, 0 failures, the 2 known
 pagination skips, all 20 LocalCoopTest cases on both; logs in JARVIS data/diablo/hotplug2-native/.
 Render: data/diablo/pad-hotplug-render/ (gold "pad disconnected" line in town).
+Merged d26b9677 (merge adds Markdown only). Prerelease v0.1.4 published from it (fork-prerelease
+run 38983332343): https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.4 — assets
+downloaded, GitHub digests and SHA256SUMS match, packaged LOCAL-COOP.md has the hotplug text, no
+game data (JARVIS data/diablo/release-v0.1.4/). Next version > v0.1.4.
 Limits: a waiting hero can be hurt and still bounds the shared camera; if pad 1 and a
 guest pad are both unplugged, the first free pad's Start takes the guest seat (pad 1 is
 then the next pad to press anything else). Pad 1's own held-input release on disconnect is
