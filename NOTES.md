@@ -15,7 +15,14 @@ Evidence: LocalCoopTest.AGuestHeroIsSavedAndRejoinsWithItsProgress (new hero get
 level/exp/strength/belt survive pfile_write_hero and leave, "Saved" untouched, rejoin list
 shows "Player 2, level 2 Warrior", second new hero gets slot 3 as "Player 3"). Tests now
 reset the save directory per case (config moved to a config/ subdirectory). Local Clang23
-Debug ASan/UBSan: all 21 LocalCoop pass. Open human test: real session quit/restart.
+Debug ASan/UBSan: all 21 LocalCoop pass. Native gate run 38987017236 on 560500ed1:
+Linux 644 / Windows 618, 0 failures, all 21 LocalCoopTest cases on both (logs in JARVIS
+data/diablo/guest-saves-native/). Merged b2fbdfe62; release notes 326514b05. Prerelease
+v0.1.5: https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.5 — assets
+downloaded, digests and SHA256SUMS match, packaged LOCAL-COOP.md has the save text, no game
+data (JARVIS data/diablo/release-v0.1.5/). Next version > v0.1.5. A prerelease dispatch needs
+docs/release-notes/v<version>.md on the revision (first dispatch cancelled for that).
+Open human test: real session quit/restart with a guest.
 
 # Pad hotplug — 2026-10-16
 
