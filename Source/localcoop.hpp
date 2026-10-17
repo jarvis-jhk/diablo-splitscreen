@@ -61,6 +61,8 @@ int LocalJoinSelection(SDL_JoystickID device);
 /** @brief Start on a guest's pad asked "leave the game?" and it is waiting. */
 bool IsLocalGuestLeaveMenuOpen(SDL_JoystickID device);
 void RemoveLocalGuest(SDL_JoystickID device);
+/** @brief Write every guest hero with a save slot back to it. */
+void SaveLocalGuests();
 /** @brief Forget every guest and claimed device (game end). */
 void ResetLocalGuests();
 

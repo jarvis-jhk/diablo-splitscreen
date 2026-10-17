@@ -124,6 +124,11 @@ DVL_API_FOR_TEST bool pfile_ui_save_create(_uiheroinfo *heroinfo);
 bool pfile_delete_save(_uiheroinfo *heroInfo);
 void pfile_read_player_from_save(uint32_t saveNum, Player &player);
 /**
+ * @brief Write another hero (a local co-op guest) to its own save slot: hero
+ * pack, hotkeys and items only, like a multiplayer hero. Never pad 1's slot.
+ */
+void pfile_write_player(uint32_t saveNum, Player &player);
+/**
  * @brief Name, class and level of a saved hero, read from its pack only
  * (no items, nothing else loaded); false if the slot holds no hero.
  */
