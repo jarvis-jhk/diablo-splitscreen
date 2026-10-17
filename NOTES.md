@@ -26,6 +26,16 @@ real tarball the install works; its AppImage cannot run in the JARVIS container 
 2.36 < 2.38 required — upstream builds on ubuntu-24.04 too; the release text says so).
 The prerelease workflow now ships install.sh + the .desktop (in SHA256SUMS) and runs the
 test against the real dist in the publish job before publishing.
+Build-only prerelease run 39001570366 failed only on the test's AppImage check
+(DevilutionX prints --version on stderr; fixed in d3fa171d3); rerun 39002631624 green
+incl. the real AppImage ("DevilutionX v1.6.0-dev-Release-d3fa171d3"). Merged d57e42648
+(no game source changed, so no Debug gate). Prerelease v0.1.6 (run 39003415334):
+https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.6 — all five assets
+downloaded, GitHub digests and SHA256SUMS match, no MPQ in either package; the published
+install.sh run against the live release in a throwaway HOME (LANG=de) installed v0.1.6,
+copied the MPQ and added the Steam shortcut (JARVIS data/diablo/release-v0.1.6/).
+Next version > v0.1.6. The binary still reports itself as "DevilutionX v1.6.0-dev"
+in --version (fork branding open). shortcuts.vdf created from nothing gets mode 0600.
 Open: Windows installer/Play launcher, physical Deck run, auto-update (separate item).
 
 # Guest saves — 2026-10-17
