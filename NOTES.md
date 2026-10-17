@@ -1,3 +1,22 @@
+# Guest saves — 2026-10-17
+
+Roadmap item diablo-quests-saves (branch `guest-saves`, source 560500ed1). Done when: guest
+heroes keep their progress across sessions, in a prerelease. `pfile_write_player(slot,
+player)` writes hero pack + hotkeys + hero items to a slot (never gSaveNumber), the same
+files a multiplayer hero save holds. `pfile_write_hero(bool)` now ends with
+`SaveLocalGuests()`, so guests are saved at every moment pad 1 is (level change, the
+60 s pfile_update timer, game end, app quit); `RemoveLocalGuest` saves before leaving.
+A new guest hero gets `FreeSaveSlot()` (first slot not in play with no archive at all,
+so an unreadable file is never overwritten) and is written at once; its name is
+"Player N", made unique against saved heroes ("Player 2 (2)"). All slots full → plays
+unsaved with a message. Dungeon/quest state is not saved in multiplayer upstream either;
+quest progression coverage in co-op is still the open M1 item.
+Evidence: LocalCoopTest.AGuestHeroIsSavedAndRejoinsWithItsProgress (new hero gets slot 2,
+level/exp/strength/belt survive pfile_write_hero and leave, "Saved" untouched, rejoin list
+shows "Player 2, level 2 Warrior", second new hero gets slot 3 as "Player 3"). Tests now
+reset the save directory per case (config moved to a config/ subdirectory). Local Clang23
+Debug ASan/UBSan: all 21 LocalCoop pass. Open human test: real session quit/restart.
+
 # Pad hotplug — 2026-10-16
 
 Roadmap item diablo-pad-hotplug (branch `pad-hotplug`, source 3bc8841ad). A guest whose

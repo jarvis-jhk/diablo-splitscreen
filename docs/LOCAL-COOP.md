@@ -18,7 +18,9 @@ control. It is a proof, not the finished couch game; the limits below are real.
    top asks "leave the game?". **A** leaves, **B** (or Start again) stays. The
    hero becomes free to pick again and the controller is released.
 
-A new hero is called "Player 2" (3, 4 by seat). Each guest keeps its seat
+A new hero is called "Player 2" (3, 4 by seat; "Player 2 (2)" and so on if a
+saved hero already has that name) and gets a save slot of its own right away, so
+next time it is in the join list like any other saved hero. Each guest keeps its seat
 (P2, P3, P4) and its panel position for as long as it plays, even when another
 guest leaves.
 
@@ -86,8 +88,13 @@ upstream's, unchanged.
 
 ## Known limits of this slice
 
-- **Guests are not saved.** A guest plays a copy of a saved hero; nothing it
-  gains is written back. Your save files are never touched by a guest.
+- **Guests are saved like pad 1's hero:** level, experience, stats, gold, items
+  and spells are written to the guest's own save whenever pad 1's hero is saved
+  (changing level, once a minute, quitting) and when the guest leaves. A guest
+  only ever writes its own slot, never pad 1's; a slot that already holds any
+  file is never given to a new hero. With all 99 slots full a new guest hero
+  plays unsaved (a message says so). As in any multiplayer game, the dungeon
+  and quest state are not saved, only the heroes.
 - Guests have their own inventory, but no character sheet, spellbook, merchant
   or dialogue yet, and cannot spend stat points. Cursor spells and scrolls
   (identify, repair, telekinesis, town portal, golem, ...) and oils are pad 1 only.
