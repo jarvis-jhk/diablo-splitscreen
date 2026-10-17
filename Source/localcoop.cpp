@@ -554,9 +554,42 @@ size_t FreeSeat()
 	return MaxLocalGuests;
 }
 
-// A guest plays another of the user's saved heroes, read only: nothing in
-// local co-op writes a guest back, so no save can be overwritten by it.
-void LoadGuestHero(Player &player, const HeroChoice &choice, size_t seat)
+// A free save slot for a new guest hero: none of the user's heroes is in it.
+std::optional<uint32_t> FreeSaveSlot()
+{
+	for (uint32_t saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
+		if (IsSaveInPlay(saveNum))
+			continue;
+		// Any archive in the slot, even one that does not read as a hero, is kept.
+		if (!OpenSaveArchive(saveNum))
+			return saveNum;
+	}
+	return std::nullopt;
+}
+
+// "Player 2", or "Player 2 (2)" and so on if a saved hero already has that
+// name, so the join list never shows two heroes with one name.
+std::string NewGuestName(size_t seat)
+{
+	std::vector<std::string> taken;
+	for (uint32_t saveNum = 0; saveNum < MAX_CHARACTERS; saveNum++) {
+		char name[PlayerNameLength];
+		HeroClass heroClass;
+		uint8_t level;
+		if (pfile_read_hero_summary(saveNum, name, heroClass, level))
+			taken.emplace_back(name);
+	}
+	const std::string base = StrCat("Player ", seat + 2);
+	std::string candidate = base;
+	for (int n = 2; std::find(taken.begin(), taken.end(), candidate) != taken.end(); n++)
+		candidate = StrCat(base, " (", n, ")");
+	return candidate;
+}
+
+// A guest plays one of the user's saved heroes and is written back to that
+// save, at the same moments as pad 1's hero and when it leaves. A new hero is
+// given a free slot of its own; with all slots full it plays unsaved.
+void LoadGuestHero(Player &player, HeroChoice &choice, size_t seat)
 {
 	if (choice.saveNumber) {
 		const bool validSaveFile = gbValidSaveFile;
@@ -572,7 +605,18 @@ void LoadGuestHero(Player &player, const HeroChoice &choice, size_t seat)
 	CreatePlayer(player, choice.heroClass);
 	if (cursorLoaded)
 		InitCursor();
-	CopyUtf8(player._pName, StrCat("Player ", seat + 2), PlayerNameLength);
+	CopyUtf8(player._pName, NewGuestName(seat), PlayerNameLength);
+	choice.saveNumber = FreeSaveSlot();
+	if (choice.saveNumber)
+		pfile_write_player(*choice.saveNumber, player);
+	else
+		EventPlrMsg(_("No free save slot: this hero will not be saved"));
+}
+
+void SaveGuest(const Guest &guest)
+{
+	if (guest.saveNumber)
+		pfile_write_player(*guest.saveNumber, Players[guest.playerId]);
 }
 
 void ClearGuestFromLevel(Player &player)
@@ -1197,7 +1241,7 @@ void ProcessGuestCommands()
 
 namespace {
 
-bool JoinWithHero(SDL_JoystickID device, const HeroChoice &choice)
+bool JoinWithHero(SDL_JoystickID device, HeroChoice choice)
 {
 	const size_t seat = FreeSeat();
 	if (!IsLocalCoopAvailable() || device == -1 || FindGuest(device) != nullptr || seat >= MaxLocalGuests)
@@ -1321,6 +1365,7 @@ void RemoveLocalGuest(SDL_JoystickID device)
 	if (it == Guests.end())
 		return;
 	Player &player = Players[it->playerId];
+	SaveGuest(*it);
 	SetControllerDeviceClaimed(device, false);
 	Guests.erase(it);
 
@@ -1331,6 +1376,12 @@ void RemoveLocalGuest(SDL_JoystickID device)
 	ResetPlayerGFX(player);
 	if (gbActivePlayers > 0)
 		gbActivePlayers--;
+}
+
+void SaveLocalGuests()
+{
+	for (const Guest &guest : Guests)
+		SaveGuest(guest);
 }
 
 void ResetLocalGuests()

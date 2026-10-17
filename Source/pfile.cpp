@@ -27,6 +27,7 @@
 #include "engine/render/primitive_render.hpp"
 #include "game_mode.hpp"
 #include "loadsave.h"
+#include "localcoop.hpp"
 #include "menu.h"
 #include "mods/mod_identity.h"
 #include "mpq/mpq_common.hpp"
@@ -642,10 +643,27 @@ const char *pfile_get_password()
 	return gbIsMultiplayer ? PASSWORD_MULTI : PASSWORD_SINGLE;
 }
 
+void pfile_write_player(uint32_t saveNum, Player &player)
+{
+	if (saveNum >= MAX_CHARACTERS || saveNum == gSaveNumber)
+		return;
+	SaveWriter saveWriter = GetSaveWriter(saveNum, /*carryForward=*/false);
+	PlayerPack pkplr;
+	PackPlayer(pkplr, player);
+	EncodeHero(saveWriter, &pkplr);
+	if (!gbVanilla) {
+		SaveHotkeys(saveWriter, player);
+		SaveHeroItems(saveWriter, player);
+	}
+	CopyUtf8(hero_names[saveNum], player._pName, sizeof(hero_names[saveNum]));
+}
+
 void pfile_write_hero(bool writeGameData)
 {
 	SaveWriter saveWriter = GetSaveWriter(gSaveNumber, /*carryForward=*/writeGameData);
 	pfile_write_hero(saveWriter, writeGameData);
+	// Local co-op guests are saved alongside pad 1's hero, at the same moments.
+	SaveLocalGuests();
 
 #ifdef __EMSCRIPTEN__
 	// Persist saves to IndexedDB for browser storage

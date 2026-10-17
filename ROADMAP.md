@@ -52,6 +52,8 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   (2026-10-16: an unplugged guest stays and stands; Start on any free pad takes the seat
   back with nothing held. Pad 1 disconnect is upstream behaviour; physical pads untested.)
 - [ ] Save/reload and migrations across game/update versions; protect original saves.
+  (2026-10-17: guest heroes are saved to their own slots with pad 1's saves and on leave;
+  new guest heroes get a free slot; slots holding any file are never reused.)
 - [ ] One-player compatibility and keyboard accessibility; no regression of normal gameplay.
 
 ## M2 — usable distribution

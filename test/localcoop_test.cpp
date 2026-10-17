@@ -263,8 +263,10 @@ public:
 		SaveDir = (std::filesystem::temp_directory_path() / "devilutionx-localcoop-test/").string();
 		std::filesystem::remove_all(SaveDir);
 		std::filesystem::create_directories(SaveDir);
+		ConfigDir = SaveDir + "config/";
+		std::filesystem::create_directories(ConfigDir);
 		paths::SetPrefPath(SaveDir);
-		paths::SetConfigPath(SaveDir);
+		paths::SetConfigPath(ConfigDir);
 
 		InitKeymapActions();
 		InitPadmapActions();
@@ -287,9 +289,17 @@ public:
 		} else {
 			AdjustToScreenGeometry({ 640, 480 }); // the camera needs a screen size
 		}
+	}
 
-		// One saved hero besides pad 1's (save 0), for the join panel to offer;
-		// a multiplayer hero, the kind an offline multiplayer game lists.
+	// Guests now write saves, so every case starts from the same save
+	// directory: one saved hero besides pad 1's (save 0), for the join panel
+	// to offer; a multiplayer hero, the kind an offline multiplayer game lists.
+	static void ResetSaves()
+	{
+		for (const auto &entry : std::filesystem::directory_iterator(SaveDir)) {
+			if (entry.path().string() + "/" != ConfigDir)
+				std::filesystem::remove_all(entry.path());
+		}
 		gbIsMultiplayer = true;
 		Players.resize(1);
 		_uiheroinfo saved { };
@@ -315,6 +325,7 @@ protected:
 	{
 		if (!HaveData)
 			GTEST_SKIP() << "MPQ assets (spawn.mpq or DIABDAT.MPQ) not found - skipping test";
+		ResetSaves();
 		StartOfflineMultiplayerGame();
 	}
 
@@ -407,6 +418,7 @@ protected:
 
 	static inline bool HaveData = false;
 	static inline std::string SaveDir;
+	static inline std::string ConfigDir;
 	std::optional<VirtualPad> padA_;
 	std::optional<VirtualPad> padB_;
 };
@@ -1036,4 +1048,68 @@ TEST_F(LocalCoopTest, StartThenALetsAGuestLeaveAndFreesItsHero)
 	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
 	ASSERT_TRUE(IsLocalJoinPending(padB_->id()));
 	EXPECT_EQ(LocalJoinChoices(padB_->id()).front(), "Saved, level 1 Warrior");
+}
+
+TEST_F(LocalCoopTest, AGuestHeroIsSavedAndRejoinsWithItsProgress)
+{
+	JoinGuest(); // a new Warrior
+	Player &guest = Guest();
+	EXPECT_STREQ(guest._pName, "Player 2");
+	// It got a save slot of its own at once: 0 is pad 1's, 1 is "Saved".
+	char name[PlayerNameLength];
+	HeroClass heroClass;
+	uint8_t level;
+	ASSERT_TRUE(pfile_read_hero_summary(2, name, heroClass, level));
+	EXPECT_STREQ(name, "Player 2");
+	EXPECT_EQ(level, 1);
+
+	// Progress: a level, experience, a stat point spent, a belt potion used.
+	ASSERT_FALSE(guest.SpdList[0].isEmpty());
+	NextPlrLevel(guest);
+	guest._pExperience = 2100;
+	guest._pBaseStr += 1;
+	guest.SpdList[0].clear();
+	const uint8_t savedLevel = guest.getCharacterLevel();
+	ASSERT_EQ(savedLevel, 2);
+
+	// Saved with pad 1's hero (level change, the minute timer, quitting).
+	pfile_write_hero();
+	ASSERT_TRUE(pfile_read_hero_summary(2, name, heroClass, level));
+	EXPECT_EQ(level, savedLevel);
+	ASSERT_TRUE(pfile_read_hero_summary(1, name, heroClass, level));
+	EXPECT_STREQ(name, "Saved"); // nobody else's save was touched
+	EXPECT_EQ(level, 1);
+
+	// More experience, then the guest leaves: that is saved too.
+	guest._pExperience = 2200;
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	ASSERT_EQ(LocalGuestCount(), 0u);
+
+	// Rejoining offers the hero with its progress and plays it as saved.
+	Press(*padB_, SDL_CONTROLLER_BUTTON_START);
+	ASSERT_TRUE(IsLocalJoinPending(padB_->id()));
+	const std::vector<std::string> expected { "Saved, level 1 Warrior", "Player 2, level 2 Warrior", "New Warrior" };
+	EXPECT_EQ(LocalJoinChoices(padB_->id()), expected);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+	Press(*padB_, SDL_CONTROLLER_BUTTON_A);
+	ASSERT_EQ(LocalGuestCount(), 1u);
+	Player &again = Guest();
+	EXPECT_STREQ(again._pName, "Player 2");
+	EXPECT_EQ(again.getCharacterLevel(), 2);
+	EXPECT_EQ(again._pExperience, 2200u);
+	EXPECT_EQ(again._pBaseStr, GetClassAttributes(HeroClass::Warrior).baseStr + 1);
+	EXPECT_TRUE(again.SpdList[0].isEmpty());
+
+	// A second new hero gets the next slot and a name of its own.
+	VirtualPad padC;
+	Tick();
+	Press(padC, SDL_CONTROLLER_BUTTON_START);
+	ASSERT_TRUE(IsLocalJoinPending(padC.id()));
+	Press(padC, SDL_CONTROLLER_BUTTON_DPAD_UP); // the last entry, "New Warrior"
+	Press(padC, SDL_CONTROLLER_BUTTON_A);
+	ASSERT_EQ(LocalGuestCount(), 2u);
+	EXPECT_STREQ(Players[LocalGuestOnDevice(padC.id())]._pName, "Player 3");
+	ASSERT_TRUE(pfile_read_hero_summary(3, name, heroClass, level));
+	EXPECT_STREQ(name, "Player 3");
 }
