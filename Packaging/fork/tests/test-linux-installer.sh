@@ -114,7 +114,7 @@ if [ $# -ge 2 ]; then
     for f in diablo-splitscreen.sh devilutionx.AppImage steam-shortcut.py icon.png LOCAL-COOP.md LICENSE.md; do
         check "real package has $f" '[ -e "$game/$f" ]'
     done
-    check "real AppImage runs" '"$game/devilutionx.AppImage" --appimage-extract-and-run --version | tee "$work/version" >/dev/null && [ -s "$work/version" ]'
+    check "real AppImage runs" '"$game/devilutionx.AppImage" --appimage-extract-and-run --version > "$work/version" 2>&1 && grep -q "^DevilutionX " "$work/version"'
     check "real launcher is the shortcut target" '[ "$(count_shortcuts)" = "2 1" ]'
     cat "$work/version" 2>/dev/null || true
 fi
