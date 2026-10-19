@@ -89,3 +89,28 @@ input and nonblocking personal UI on a shared screen before expanding the releas
 - [ ] Online co-op through Warpzone (DevilutionX TCP co-op over its peer channel), after
   the couch milestones (M1) are playable.
 - [ ] Optional Hellfire support only after the base Diablo goal; no distraction from M1.
+
+## M4 — macOS support
+
+Owner goal (2026-10-19, combined roadmap item diablo-macos-support). Comes after the
+milestones above; it does not reorder them.
+
+- [ ] macOS build (Apple Silicon and Intel, or one universal .app) built in CI on a GitHub
+  macOS runner, starting from upstream's macOS_arm64/macOS_x86_64 workflows (disabled in
+  this fork) folded into the fork's own gates, with the Debug tests running there.
+- [ ] Smoke test on the runner: the packaged .app starts, finds no MPQ and exits cleanly
+  with the expected message; LocalCoopTest virtual-pad cases pass on macOS.
+- [ ] Attach the macOS artifact (zipped .app or .dmg, checksummed) to fork prereleases and
+  include it in download/checksum verification before an announcement.
+- [ ] Player docs: macOS install/start, where to put DIABDAT.MPQ, save location. Unsigned
+  is acceptable; document the Gatekeeper workaround (right-click → Open, or
+  `xattr -dr com.apple.quarantine`).
+- Known risks: SDL2 renders through Metal/OpenGL on macOS and the Retina/HiDPI scaling of
+  the shared camera and guest panels needs checking; controllers go through SDL's
+  GameController/IOKit/GCController backends, so pad ids, hotplug and the claimed-device
+  routing must be re-proven there; data/save paths are under ~/Library/Application Support
+  and must not move (no migration without backup); the Linux install.sh/Steam shortcut
+  does not apply; the fault relay and any updater must cope with the quarantine attribute
+  and an unsigned bundle; Warpzone needs a macOS launcher/libwarpzone build and a
+  descriptor asset before the Warpzone milestones can include macOS. Physical Mac and
+  controller checks are hardware evidence, separate from CI.
