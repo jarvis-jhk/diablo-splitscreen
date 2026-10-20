@@ -66,6 +66,11 @@ input and nonblocking personal UI on a shared screen before expanding the releas
   Deck run still Jan's test.)
 - [ ] Automatic background update check, safe versioned install at next launch, rollback on
   failed health check; never overwrite MPQs, saves or configuration. Windows parity required.
+  (2026-10-20, Linux/Deck: launcher + update.sh check GitHub in the background at most
+  every 6 h, stage a checksum-verified newer release, switch at next launch after an
+  AppImage --version health check, roll back a crash in the first minute, skip bad
+  versions; off under Warpzone/opt-out/unpacked tarballs. Windows parity open with the
+  Windows installer.)
 - [ ] Startup changelog once per installed version, controller-readable and dismissible.
 - [ ] Nonblocking anonymous crash/failed-update reporting and local redacted diagnostics.
 - [ ] Verify downloads and both platform artifacts before publishing/announcing a release.

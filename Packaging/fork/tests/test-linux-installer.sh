@@ -111,7 +111,7 @@ if [ $# -ge 2 ]; then
     DSS_RELEASE_URL="file://$dist" bash "$installer" > "$work/log-real" 2>&1 || cat "$work/log-real"
     game="$root/current/diablo-splitscreen"
     check "real release installed" '[ "$(readlink "$root/current")" = "versions/$tag" ]'
-    for f in diablo-splitscreen.sh devilutionx.AppImage steam-shortcut.py icon.png LOCAL-COOP.md LICENSE.md; do
+    for f in diablo-splitscreen.sh update.sh devilutionx.AppImage steam-shortcut.py icon.png LOCAL-COOP.md LICENSE.md; do
         check "real package has $f" '[ -e "$game/$f" ]'
     done
     check "real AppImage runs" '"$game/devilutionx.AppImage" --appimage-extract-and-run --version > "$work/version" 2>&1 && grep -q "^DevilutionX " "$work/version"'

@@ -1,3 +1,31 @@
+# Linux/Steam Deck automatic update — 2026-10-20
+
+Roadmap item diablo-auto-update (branch `auto-update`). The launcher is now a file,
+Packaging/fork/linux/diablo-splitscreen.sh (@VERSION@ → tag), shipped with update.sh.
+update.sh acts only when the game dir is <root>/versions/<tag>/diablo-splitscreen and
+<root>/current resolves to it (installer install), not with DSS_NO_UPDATE=1,
+<root>/no-auto-update or .warpzone-managed in the game dir or its parent.
+`check` (background, nice, from the launcher): throttled by <root>/last-check (6 h),
+mkdir lock (stale after 60 min); GitHub releases API → highest non-draft vX.Y.Z with
+the Linux tarball + SHA256SUMS (prereleases count: that is all we ship); downloads,
+checksum-verifies, unpacks via versions/.<tag>.partial → versions/<tag>, writes pending.
+`apply` (launch): pending newer and not in <root>/bad → health check (the new AppImage
+`--appimage-extract-and-run --version` prints "DevilutionX ") → previous/trial files,
+atomic `mv -T` of current, prune all but new + previous, launcher execs the new one.
+A failed health check marks the tag bad and deletes it. `finish` (after the trial
+run): crash signals only (ILL/TRAP/ABRT/BUS/FPE/SEGV — not TERM/KILL/INT, which Steam
+or a terminal send) within 60 s → tag bad, current back, launcher execs previous.
+Faults (checksum, unpack, health check, rollback) go to the ntfy topic as fixed text;
+being offline is silent. v0.1.6 and older have no updater: one manual install needed.
+Evidence: Packaging/fork/tests/test-linux-update.sh, 26 checks with fake releases over
+file:// (stage only in background, switch next launch, previous kept, checksum refusal
+of a valid but different tarball, broken health check, crash rollback + never retried,
+TERM is no crash, Warpzone/opt-out/env/offline/throttle/unpacked tarball inert, MPQ/
+saves/ini unchanged) plus, given a dist dir, a fake old install updating to the real
+tarball with the real AppImage health check (prerelease publish job). Negative controls
+each fail their checks: checksum check removed (1), health check removed (3), rollback
+removed (2), crash-signal filter removed (2), Warpzone guard removed (4).
+
 # Linux/Steam Deck installer — 2026-10-17
 
 Roadmap item diablo-builds-installer (branch `linux-installer`, source 6921c4838).

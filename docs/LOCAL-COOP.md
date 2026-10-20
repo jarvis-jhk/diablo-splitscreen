@@ -15,10 +15,26 @@ removed. It adds a menu entry, offers to copy your own `DIABDAT.MPQ` (or `SPAWN.
 `~/.local/share/diasurgical/devilution/` as the lower-case name the game expects
 (an existing file there is never replaced), and adds a Steam shortcut for Game Mode
 only while Steam is fully closed, keeping a backup of Steam's shortcut file. Saves,
-settings and MPQs are never touched. Running the installer of a newer release updates;
-the Steam shortcut keeps working. Without the installer, unpack the `.tar.gz` anywhere
+settings and MPQs are never touched. Without the installer, unpack the `.tar.gz` anywhere
 and run `diablo-splitscreen/diablo-splitscreen.sh`. The bundled AppImage needs glibc 2.38
 or newer (current SteamOS, Ubuntu 24.04).
+
+### Automatic updates (Linux and Steam Deck)
+
+An installed game updates itself. While you play, it asks GitHub at most every six
+hours whether there is a newer Diablo Splitscreen release, downloads its Linux build in
+the background, checks it against that release's `SHA256SUMS` and unpacks it next to
+the current version. Nothing changes during that game. The next time you start it, the
+new version's binary must first start on your system; only then does `current` switch
+to it, and the version you played before is kept. If the new version crashes within its
+first minute, the game goes back to the previous version, starts that instead and never
+offers the broken one again. Offline the game just starts as before. Saves, settings and
+MPQs are never touched, and the menu entry and Steam shortcut keep working. The anonymous
+fault report mentions a failed checksum, failed start check or rollback, nothing more.
+To turn updates off create `~/.local/share/diablo-splitscreen/no-auto-update` (or start
+with `DSS_NO_UPDATE=1`); running a newer release's installer by hand also updates. Only
+installer installs update: an unpacked `.tar.gz` or a Warpzone install (which updates
+itself) never does. Windows has no automatic update yet.
 
 ## How to play
 

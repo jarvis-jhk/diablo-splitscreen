@@ -1,7 +1,8 @@
 # Builds a fork (pre)release from one exact commit: a Linux x86_64 tarball, its
 # installer (install.sh + a double-click .desktop for Steam Deck) and a Windows x64
 # zip, with one SHA256SUMS file, published as a GitHub prerelease.
-# Release builds carry the anonymous fault reporter (Source/fault_report.cpp).
+# Release builds carry the anonymous fault reporter (Source/fault_report.cpp);
+# Linux installs update themselves (Packaging/fork/linux/update.sh).
 # No game data is ever packaged; players supply their own MPQs.
 name: Fork prerelease
 
@@ -71,25 +72,10 @@ jobs:
           cp LICENSE.md docs/LOCAL-COOP.md Packaging/resources/LICENSE.CC-BY.txt Packaging/resources/LICENSE.OFL.txt "$dir/"
           # Used by install.sh after unpacking: Steam shortcut tool and menu/Steam icon.
           cp Packaging/fork/linux/steam-shortcut.py Packaging/resources/icon.png "$dir/"
-          cat > "$dir/diablo-splitscreen.sh" <<'SH'
-          #!/bin/sh
-          # Starts the game; reports an anonymous crash (version, platform, signal) afterwards.
-          # DEVILUTIONX_NO_REPORT=1 turns reporting off.
-          BASEDIR="$(dirname "$(realpath "$0")")"
-          if [ -e /dev/fuse ]; then
-            "$BASEDIR/devilutionx.AppImage" "$@"
-          else
-            "$BASEDIR/devilutionx.AppImage" --appimage-extract-and-run "$@"
-          fi
-          rc=$?
-          if [ "$rc" -gt 128 ] && [ "$DEVILUTIONX_NO_REPORT" != "1" ]; then
-            (curl -fsS --max-time 8 -o /dev/null -d "Diablo Splitscreen VERSION Linux crash signal $((rc - 128))" \
-              https://ntfy.sh/diablo-splitscreen-faults-747d46c7c1c4de46 >/dev/null 2>&1 &)
-          fi
-          exit "$rc"
-          SH
-          sed -i "s/VERSION Linux/${{ inputs.version }} Linux/" "$dir/diablo-splitscreen.sh"
-          chmod +x "$dir/diablo-splitscreen.sh"
+          # Launcher (crash report, applies updates) and the updater it calls.
+          sed "s/@VERSION@/v${{ inputs.version }}/" Packaging/fork/linux/diablo-splitscreen.sh > "$dir/diablo-splitscreen.sh"
+          cp Packaging/fork/linux/update.sh "$dir/"
+          chmod +x "$dir/diablo-splitscreen.sh" "$dir/update.sh"
           tar -czf "$name.tar.gz" "$dir"
           sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
           # The installer and its double-click starter fetch exactly this release.
@@ -174,6 +160,8 @@ jobs:
           grep -q 'END OF DIABLO SPLITSCREEN INSTALLER' dist/install.sh
           grep -q "releases/download/v${{ inputs.version }}/install.sh" dist/Install-Diablo-Splitscreen.desktop
           bash Packaging/fork/tests/test-linux-installer.sh dist ${{ inputs.version }}
+      - name: Update an older install to this release
+        run: bash Packaging/fork/tests/test-linux-update.sh dist ${{ inputs.version }}
       - name: Publish the prerelease
         if: inputs.publish
         env:
