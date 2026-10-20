@@ -25,6 +25,14 @@ saves/ini unchanged) plus, given a dist dir, a fake old install updating to the 
 tarball with the real AppImage health check (prerelease publish job). Negative controls
 each fail their checks: checksum check removed (1), health check removed (3), rollback
 removed (2), crash-signal filter removed (2), Warpzone guard removed (4).
+Merged to master as 2fd395c64 (fast-forward; no game source changed, so no Debug gate).
+Prerelease v0.1.7 (run 39357272075, linux/windows/publish green on 2fd395c64): publish log
+shows the installer test incl. update.sh in the real package and all update checks incl.
+the real AppImage health check. https://github.com/jarvis-jhk/diablo-splitscreen/releases/tag/v0.1.7
+— all five assets downloaded, GitHub digests = SHA256SUMS, no MPQ; the published update.sh
+in a fake v0.1.6 install against the LIVE GitHub API staged v0.1.7 with the identical
+AppImage (JARVIS data/diablo/release-v0.1.7/). v0.1.6 and older need one manual install.
+Next version > v0.1.7. Open: Windows updater (with the Windows installer), startup changelog.
 
 # Linux/Steam Deck installer — 2026-10-17
 
